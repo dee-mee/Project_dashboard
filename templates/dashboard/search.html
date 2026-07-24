@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Search{% endblock %}
+{% block page_title %}Search{% endblock %}
+{% block page_subtitle %}{% if query %}"{{ query }}"{% else %}All records{% endif %}{% endblock %}
+
+{% block content %}
+<div class="breadcrumb"><a href="{% url 'dashboard:overview' %}">Dashboard</a> / Search</div>
+
+<div style="margin-bottom: 24px;">
+  <form method="get" action="{% url 'dashboard:search' %}" style="display: flex; gap: 8px;">
+    <input 
+      type="text" 
+      name="q" 
+      value="{{ query }}" 
+      placeholder="Search clients, projects, domains..." 
+      class="form-input"
+      style="flex: 1;"
+      autofocus
+    >
+    <button type="submit" class="btn">Search</button>
+    {% if query %}
+    <a href="{% url 'dashboard:search' %}" class="btn">Clear</a>
+    {% endif %}
+  </form>
+</div>
+
+{% if query %}
+  <div style="margin-bottom: 24px; color: var(--text-muted); font-size: 13px;">
+    Found {{ results.clients|length }} clients, {{ results.projects|length }} projects, {{ results.sites|length }} sites
+  </div>
+{% endif %}
+
+<div class="grid grid-3">
+  {% if results.clients %}
+  <div class="card">
+    <div class="card-head"><h3>Clients ({{ results.clients|length }})</h3></div>
+    <div class="field-list">
+      {% for client in results.clients %}
+      <div class="field-row">
+        <span class="v"><a href="{{ client.get_absolute_url }}">{{ client.company|default:client.name }}</a></span>
+      </div>
+      {% empty %}
+      <p style="color: var(--text-muted); font-size: 13px;">No clients found</p>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if results.projects %}
+  <div class="card">
+    <div class="card-head"><h3>Projects ({{ results.projects|length }})</h3></div>
+    <div class="field-list">
+      {% for project in results.projects %}
+      <div class="field-row">
+        <span class="v"><a href="{{ project.get_absolute_url }}">{{ project.name }}</a></span>
+      </div>
+      <div class="field-row" style="font-size: 12px; color: var(--text-muted);">
+        <span class="v">{{ project.client }}</span>
+      </div>
+      {% empty %}
+      <p style="color: var(--text-muted); font-size: 13px;">No projects found</p>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if results.sites %}
+  <div class="card">
+    <div class="card-head"><h3>Hosted Websites ({{ results.sites|length }})</h3></div>
+    <div class="field-list">
+      {% for site in results.sites %}
+      <div class="field-row">
+        <span class="v"><a href="{{ site.get_absolute_url }}">{{ site.domain }}</a></span>
+      </div>
+      <div class="field-row" style="font-size: 12px; color: var(--text-muted);">
+        <span class="v">{{ site.project.name }}</span>
+      </div>
+      {% empty %}
+      <p style="color: var(--text-muted); font-size: 13px;">No sites found</p>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{% if not query and not results.clients and not results.projects and not results.sites %}
+<div class="card" style="text-align: center; padding: 48px;">
+  <p style="color: var(--text-muted); font-size: 14px;">Enter a search term to find clients, projects, or hosted websites.</p>
+</div>
+{% endif %}
+
+{% if query and not results.clients and not results.projects and not results.sites %}
+<div class="card" style="text-align: center; padding: 48px;">
+  <p style="color: var(--text-muted); font-size: 14px;">No results found for "{{ query }}".</p>
+</div>
+{% endif %}
+{% endblock %}

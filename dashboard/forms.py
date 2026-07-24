@@ -1,5 +1,5 @@
 from django import forms
-from .models import Client, HostedWebsite, Invoice, Project
+from .models import Client, HostedWebsite, Invoice, Project, TimeEntry
 
 
 class ClientForm(forms.ModelForm):

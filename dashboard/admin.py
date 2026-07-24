@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Client, HostedWebsite, Invoice, Project
+from .models import AuditLog, Client, HostedWebsite, Invoice, Project, TimeEntry, UserProfile
 
 
 class ProjectInline(admin.TabularInline):
@@ -52,3 +52,27 @@ class InvoiceAdmin(admin.ModelAdmin):
     list_display = ("reference", "client", "project", "amount", "status", "issued_date", "due_date")
     list_filter = ("status",)
     search_fields = ("reference", "client__name", "client__company")
+
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ("user", "role", "client", "can_edit", "can_delete")
+    list_filter = ("role", "can_edit", "can_delete")
+    search_fields = ("user__username", "user__email", "client__company")
+    raw_id_fields = ("user", "client")
+
+
+@admin.register(TimeEntry)
+class TimeEntryAdmin(admin.ModelAdmin):
+    list_display = ("user", "project", "hours", "date", "description")
+    list_filter = ("project", "user", "date")
+    search_fields = ("description", "project__name", "user__username")
+    date_hierarchy = "date"
+
+
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    list_display = ("user", "action", "content_type", "object_id", "timestamp")
+    list_filter = ("action", "timestamp")
+    search_fields = ("user__username", "description")
+    readonly_fields = ("user", "action", "content_type", "object_id", "description", "changes", "timestamp")

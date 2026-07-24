@@ -1,8 +1,11 @@
 import datetime
 
+from django.contrib.auth.models import User
 from django.db import models
 from django.urls import reverse
 from django.utils import timezone
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 
 
 class Client(models.Model):
@@ -25,6 +28,46 @@ class Client(models.Model):
     @property
     def active_project_count(self):
         return self.projects.filter(status="active").count()
+
+
+class UserProfile(models.Model):
+    ROLE_ADMIN = 'admin'
+    ROLE_MANAGER = 'manager'
+    ROLE_VIEWER = 'viewer'
+    ROLE_CLIENT = 'client'
+    
+    ROLE_CHOICES = [
+        (ROLE_ADMIN, 'Admin'),
+        (ROLE_MANAGER, 'Manager'),
+        (ROLE_VIEWER, 'Viewer'),
+        (ROLE_CLIENT, 'Client'),
+    ]
+    
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=ROLE_VIEWER)
+    client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, blank=True, related_name='user_profiles', help_text='For client-facing users, link to their client account')
+    can_delete = models.BooleanField(default=False, help_text='Allow deletion of records')
+    can_edit = models.BooleanField(default=True, help_text='Allow editing of records')
+    
+    class Meta:
+        verbose_name = 'User Profile'
+        verbose_name_plural = 'User Profiles'
+    
+    def __str__(self):
+        return f"{self.user.username} ({self.get_role_display()})"
+    
+    def has_full_access(self):
+        return self.role in [self.ROLE_ADMIN, self.ROLE_MANAGER]
+    
+    def can_view_all_clients(self):
+        return self.role in [self.ROLE_ADMIN, self.ROLE_MANAGER]
+    
+    def can_view_client(self, client):
+        if self.has_full_access():
+            return True
+        if self.role == self.ROLE_CLIENT:
+            return self.client == client
+        return False
 
 
 class Project(models.Model):
@@ -141,3 +184,138 @@ class Invoice(models.Model):
         if self.status == self.STATUS_PENDING and self.due_date and self.due_date < timezone.now().date():
             self.status = self.STATUS_OVERDUE
         super().save(*args, **kwargs)
+    
+    def generate_pdf(self):
+        """Generate PDF invoice using reportlab"""
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib import colors
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.lib.units import inch
+        import os
+        from django.conf import settings
+        
+        # Create file path
+        filename = f"invoice_{self.reference or self.pk}.pdf"
+        upload_to = f"invoices/{timezone.now().strftime('%Y/%m')}"
+        full_path = os.path.join(settings.MEDIA_ROOT, upload_to, filename)
+        
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+        
+        # Create PDF
+        doc = SimpleDocTemplate(full_path, pagesize=letter)
+        styles = getSampleStyleSheet()
+        story = []
+        
+        # Header
+        story.append(Paragraph(f"INVOICE #{self.reference or self.pk}", styles['Title']))
+        story.append(Spacer(1, 0.2*inch))
+        
+        # Client info
+        client_text = f"""
+        <b>Bill To:</b><br/>
+        {self.client.name}<br/>
+        {self.client.company or ''}<br/>
+        {self.client.email or ''}<br/>
+        {self.client.phone or ''}
+        """
+        story.append(Paragraph(client_text, styles['Normal']))
+        story.append(Spacer(1, 0.3*inch))
+        
+        # Invoice details
+        details_text = f"""
+        <b>Issued:</b> {self.issued_date.strftime('%B %d, %Y') if self.issued_date else 'N/A'}<br/>
+        <b>Due:</b> {self.due_date.strftime('%B %d, %Y') if self.due_date else 'N/A'}<br/>
+        <b>Status:</b> {self.get_status_display()}
+        """
+        story.append(Paragraph(details_text, styles['Normal']))
+        story.append(Spacer(1, 0.3*inch))
+        
+        # Amount
+        amount_text = f"<b>Total Amount: ${self.amount:,.2f}</b>"
+        story.append(Paragraph(amount_text, styles['Heading2']))
+        
+        if self.project:
+            story.append(Spacer(1, 0.2*inch))
+            project_text = f"<b>Project:</b> {self.project.name}"
+            story.append(Paragraph(project_text, styles['Normal']))
+        
+        # Build PDF
+        doc.build(story)
+        
+        # Save to model
+        self.pdf_file.name = f"{upload_to}/{filename}"
+        self.save()
+        
+        return self.pdf_file
+
+
+class AuditLog(models.Model):
+    ACTION_CREATE = 'create'
+    ACTION_UPDATE = 'update'
+    ACTION_DELETE = 'delete'
+    ACTION_STATUS_CHANGE = 'status_change'
+    
+    ACTION_CHOICES = [
+        (ACTION_CREATE, 'Created'),
+        (ACTION_UPDATE, 'Updated'),
+        (ACTION_DELETE, 'Deleted'),
+        (ACTION_STATUS_CHANGE, 'Status Changed'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='audit_logs')
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField()
+    content_object = GenericForeignKey('content_type', 'object_id')
+    description = models.TextField(blank=True)
+    changes = models.JSONField(default=dict, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-timestamp']
+        verbose_name = 'Audit Log'
+        verbose_name_plural = 'Audit Logs'
+        indexes = [
+            models.Index(fields=['content_type', 'object_id']),
+            models.Index(fields=['user']),
+            models.Index(fields=['timestamp']),
+        ]
+    
+    def __str__(self):
+        return f"{self.get_action_display()} {self.content_object} by {self.user}"
+    
+    @classmethod
+    def log_action(cls, user, action, obj, description='', changes=None):
+        """Helper method to log an action"""
+        return cls.objects.create(
+            user=user,
+            action=action,
+            content_type=ContentType.objects.get_for_model(obj),
+            object_id=obj.pk,
+            description=description,
+            changes=changes or {}
+        )
+
+
+class TimeEntry(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='time_entries')
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='time_entries')
+    description = models.TextField(blank=True)
+    hours = models.DecimalField(max_digits=5, decimal_places=2, help_text='Hours worked')
+    date = models.DateField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-date', '-created_at']
+        verbose_name = 'Time Entry'
+        verbose_name_plural = 'Time Entries'
+        indexes = [
+            models.Index(fields=['project']),
+            models.Index(fields=['user']),
+            models.Index(fields=['date']),
+        ]
+    
+    def __str__(self):
+        return f"{self.hours}h on {self.project.name} ({self.date})"

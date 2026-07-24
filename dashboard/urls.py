@@ -6,6 +6,7 @@ app_name = "dashboard"
 
 urlpatterns = [
     path("", views.overview, name="overview"),
+    path("search/", views.search, name="search"),
     path("clients/", views.ClientListView.as_view(), name="client_list"),
     path("clients/create/", views.ClientCreateView.as_view(), name="client_create"),
     path("clients/<int:pk>/", views.ClientDetailView.as_view(), name="client_detail"),
@@ -26,4 +27,5 @@ urlpatterns = [
     path("invoices/<int:pk>/", views.InvoiceDetailView.as_view(), name="invoice_detail"),
     path("invoices/<int:pk>/edit/", views.InvoiceUpdateView.as_view(), name="invoice_update"),
     path("invoices/<int:pk>/delete/", views.InvoiceDeleteView.as_view(), name="invoice_delete"),
+    path("invoices/<int:pk>/generate-pdf/", views.generate_invoice_pdf, name="invoice_generate_pdf"),
 ]

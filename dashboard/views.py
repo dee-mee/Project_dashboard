@@ -2,15 +2,51 @@ import json
 from datetime import timedelta
 
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Count, Sum
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.db.models import Count, Sum, Q
 from django.shortcuts import render, get_object_or_404, redirect
+from django.http import HttpResponse
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
 
 from .forms import ClientForm, HostedWebsiteForm, InvoiceForm, ProjectForm
-from .models import Client, HostedWebsite, Invoice, Project
+from .models import Client, HostedWebsite, Invoice, Project, UserProfile
+
+
+class PermissionRequiredMixin(UserPassesTestMixin):
+    """Mixin to check user permissions based on UserProfile"""
+    
+    def test_func(self):
+        if not self.request.user.is_authenticated:
+            return False
+        
+        try:
+            profile = self.request.user.profile
+        except UserProfile.DoesNotExist:
+            # Create a default profile if it doesn't exist
+            profile = UserProfile.objects.create(user=self.request.user)
+        
+        # Check edit/delete permissions
+        if self.request.method in ['POST', 'PUT', 'DELETE']:
+            if not profile.can_edit:
+                return False
+            if not profile.can_delete and 'delete' in self.request.path.lower():
+                return False
+        
+        return True
+    
+    def handle_no_permission(self):
+        from django.contrib.auth.mixins import PermissionDenied
+        raise PermissionDenied("You don't have permission to perform this action.")
+
+
+def get_user_profile(user):
+    """Get or create user profile"""
+    try:
+        return user.profile
+    except UserProfile.DoesNotExist:
+        return UserProfile.objects.create(user=user)
 
 
 def _month_label(dt):
@@ -19,16 +55,35 @@ def _month_label(dt):
 
 @login_required
 def overview(request):
+    profile = get_user_profile(request.user)
     today = timezone.now().date()
     soon = today + timedelta(days=30)
 
-    total_clients = Client.objects.count()
-    total_projects = Project.objects.count()
-    active_projects = Project.objects.filter(status=Project.STATUS_ACTIVE).count()
-    total_sites = HostedWebsite.objects.count()
+    # Filter data based on user permissions
+    if profile.can_view_all_clients():
+        clients = Client.objects.all()
+        projects = Project.objects.all()
+        sites = HostedWebsite.objects.all()
+        invoices = Invoice.objects.all()
+    elif profile.role == UserProfile.ROLE_CLIENT and profile.client:
+        clients = Client.objects.filter(pk=profile.client.pk)
+        projects = Project.objects.filter(client=profile.client)
+        sites = HostedWebsite.objects.filter(project__client=profile.client)
+        invoices = Invoice.objects.filter(client=profile.client)
+    else:
+        # Viewer with no client assignment - show nothing
+        clients = Client.objects.none()
+        projects = Project.objects.none()
+        sites = HostedWebsite.objects.none()
+        invoices = Invoice.objects.none()
+
+    total_clients = clients.count()
+    total_projects = projects.count()
+    active_projects = projects.filter(status=Project.STATUS_ACTIVE).count()
+    total_sites = sites.count()
 
     # Project status breakdown (donut)
-    project_status_qs = Project.objects.values("status").annotate(count=Count("id"))
+    project_status_qs = projects.values("status").annotate(count=Count("id"))
     status_labels = dict(Project.STATUS_CHOICES)
     project_status = {
         "labels": [status_labels.get(row["status"], row["status"]) for row in project_status_qs],
@@ -36,7 +91,7 @@ def overview(request):
     }
 
     # Hosted site status breakdown (donut)
-    site_status_qs = HostedWebsite.objects.values("status").annotate(count=Count("id"))
+    site_status_qs = sites.values("status").annotate(count=Count("id"))
     site_status_labels = dict(HostedWebsite.STATUS_CHOICES)
     site_status = {
         "labels": [site_status_labels.get(row["status"], row["status"]) for row in site_status_qs],
@@ -44,7 +99,7 @@ def overview(request):
     }
 
     # Invoice status breakdown (donut) + revenue bar
-    invoice_status_qs = Invoice.objects.values("status").annotate(count=Count("id"), total=Sum("amount"))
+    invoice_status_qs = invoices.values("status").annotate(count=Count("id"), total=Sum("amount"))
     invoice_status_labels = dict(Invoice.STATUS_CHOICES)
     invoice_status = {
         "labels": [invoice_status_labels.get(row["status"], row["status"]) for row in invoice_status_qs],
@@ -64,7 +119,7 @@ def overview(request):
         months.append((y, m))
     revenue_trend = {"labels": [], "data": []}
     for y, m in months:
-        total = Invoice.objects.filter(issued_date__year=y, issued_date__month=m).aggregate(total=Sum("amount"))[
+        total = invoices.filter(issued_date__year=y, issued_date__month=m).aggregate(total=Sum("amount"))[
             "total"
         ] or 0
         revenue_trend["labels"].append(timezone.datetime(y, m, 1).strftime("%b"))
@@ -73,23 +128,22 @@ def overview(request):
     # Projects created per month (bar chart), same 6-month window
     projects_trend = {"labels": [], "data": []}
     for y, m in months:
-        count = Project.objects.filter(created_at__year=y, created_at__month=m).count()
+        count = projects.filter(created_at__year=y, created_at__month=m).count()
         projects_trend["labels"].append(timezone.datetime(y, m, 1).strftime("%b"))
         projects_trend["data"].append(count)
 
-    expiring_sites = HostedWebsite.objects.filter(
-        domain_expiry_date__lte=soon
-    ) | HostedWebsite.objects.filter(ssl_expiry_date__lte=soon)
-    expiring_sites = expiring_sites.distinct().order_by("domain_expiry_date")[:8]
+    expiring_sites = sites.filter(
+        Q(domain_expiry_date__lte=soon) | Q(ssl_expiry_date__lte=soon)
+    ).distinct().order_by("domain_expiry_date")[:8]
 
-    overdue_invoices = Invoice.objects.filter(status=Invoice.STATUS_OVERDUE).order_by("due_date")[:8]
-    recent_invoices = Invoice.objects.select_related("client").order_by("-issued_date")[:8]
-    recent_projects = Project.objects.select_related("client").order_by("-created_at")[:6]
+    overdue_invoices = invoices.filter(status=Invoice.STATUS_OVERDUE).order_by("due_date")[:8]
+    recent_invoices = invoices.select_related("client").order_by("-issued_date")[:8]
+    recent_projects = projects.select_related("client").order_by("-created_at")[:6]
 
-    outstanding_total = Invoice.objects.exclude(status=Invoice.STATUS_PAID).aggregate(total=Sum("amount"))[
+    outstanding_total = invoices.exclude(status=Invoice.STATUS_PAID).aggregate(total=Sum("amount"))[
         "total"
     ] or 0
-    paid_total = Invoice.objects.filter(status=Invoice.STATUS_PAID).aggregate(total=Sum("amount"))["total"] or 0
+    paid_total = invoices.filter(status=Invoice.STATUS_PAID).aggregate(total=Sum("amount"))["total"] or 0
 
     context = {
         "total_clients": total_clients,
@@ -119,6 +173,14 @@ class ClientListView(LoginRequiredMixin, ListView):
     context_object_name = "clients"
     paginate_by = 25
 
+    def get_queryset(self):
+        profile = get_user_profile(self.request.user)
+        if profile.can_view_all_clients():
+            return Client.objects.all()
+        elif profile.role == UserProfile.ROLE_CLIENT and profile.client:
+            return Client.objects.filter(pk=profile.client.pk)
+        return Client.objects.none()
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx["active_nav"] = "clients"
@@ -129,6 +191,14 @@ class ClientDetailView(LoginRequiredMixin, DetailView):
     model = Client
     template_name = "dashboard/client_detail.html"
     context_object_name = "client"
+
+    def get_queryset(self):
+        profile = get_user_profile(self.request.user)
+        if profile.can_view_all_clients():
+            return Client.objects.all()
+        elif profile.role == UserProfile.ROLE_CLIENT and profile.client:
+            return Client.objects.filter(pk=profile.client.pk)
+        return Client.objects.none()
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -145,7 +215,16 @@ class ProjectListView(LoginRequiredMixin, ListView):
     paginate_by = 25
 
     def get_queryset(self):
+        profile = get_user_profile(self.request.user)
         qs = Project.objects.select_related("client")
+        
+        if profile.can_view_all_clients():
+            pass  # Show all projects
+        elif profile.role == UserProfile.ROLE_CLIENT and profile.client:
+            qs = qs.filter(client=profile.client)
+        else:
+            qs = qs.none()
+        
         status = self.request.GET.get("status")
         if status:
             qs = qs.filter(status=status)
@@ -164,6 +243,14 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
     template_name = "dashboard/project_detail.html"
     context_object_name = "project"
 
+    def get_queryset(self):
+        profile = get_user_profile(self.request.user)
+        if profile.can_view_all_clients():
+            return Project.objects.all()
+        elif profile.role == UserProfile.ROLE_CLIENT and profile.client:
+            return Project.objects.filter(client=profile.client)
+        return Project.objects.none()
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx["hosted_sites"] = self.object.hosted_sites.all()
@@ -179,7 +266,16 @@ class HostedWebsiteListView(LoginRequiredMixin, ListView):
     paginate_by = 25
 
     def get_queryset(self):
+        profile = get_user_profile(self.request.user)
         qs = HostedWebsite.objects.select_related("project", "project__client")
+        
+        if profile.can_view_all_clients():
+            pass  # Show all sites
+        elif profile.role == UserProfile.ROLE_CLIENT and profile.client:
+            qs = qs.filter(project__client=profile.client)
+        else:
+            qs = qs.none()
+        
         status = self.request.GET.get("status")
         if status:
             qs = qs.filter(status=status)
@@ -198,6 +294,14 @@ class HostedWebsiteDetailView(LoginRequiredMixin, DetailView):
     template_name = "dashboard/site_detail.html"
     context_object_name = "site"
 
+    def get_queryset(self):
+        profile = get_user_profile(self.request.user)
+        if profile.can_view_all_clients():
+            return HostedWebsite.objects.all()
+        elif profile.role == UserProfile.ROLE_CLIENT and profile.client:
+            return HostedWebsite.objects.filter(project__client=profile.client)
+        return HostedWebsite.objects.none()
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx["active_nav"] = "sites"
@@ -211,7 +315,16 @@ class InvoiceListView(LoginRequiredMixin, ListView):
     paginate_by = 25
 
     def get_queryset(self):
+        profile = get_user_profile(self.request.user)
         qs = Invoice.objects.select_related("client", "project")
+        
+        if profile.can_view_all_clients():
+            pass  # Show all invoices
+        elif profile.role == UserProfile.ROLE_CLIENT and profile.client:
+            qs = qs.filter(client=profile.client)
+        else:
+            qs = qs.none()
+        
         status = self.request.GET.get("status")
         if status:
             qs = qs.filter(status=status)
@@ -230,13 +343,21 @@ class InvoiceDetailView(LoginRequiredMixin, DetailView):
     template_name = "dashboard/invoice_detail.html"
     context_object_name = "invoice"
 
+    def get_queryset(self):
+        profile = get_user_profile(self.request.user)
+        if profile.can_view_all_clients():
+            return Invoice.objects.all()
+        elif profile.role == UserProfile.ROLE_CLIENT and profile.client:
+            return Invoice.objects.filter(client=profile.client)
+        return Invoice.objects.none()
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx["active_nav"] = "invoices"
         return ctx
 
 
-class ClientCreateView(LoginRequiredMixin, CreateView):
+class ClientCreateView(PermissionRequiredMixin, CreateView):
     model = Client
     form_class = ClientForm
     template_name = "dashboard/client_form.html"
@@ -249,7 +370,7 @@ class ClientCreateView(LoginRequiredMixin, CreateView):
         return ctx
 
 
-class ClientUpdateView(LoginRequiredMixin, UpdateView):
+class ClientUpdateView(PermissionRequiredMixin, UpdateView):
     model = Client
     form_class = ClientForm
     template_name = "dashboard/client_form.html"
@@ -261,7 +382,7 @@ class ClientUpdateView(LoginRequiredMixin, UpdateView):
         return ctx
 
 
-class ClientDeleteView(LoginRequiredMixin, DeleteView):
+class ClientDeleteView(PermissionRequiredMixin, DeleteView):
     model = Client
     template_name = "dashboard/client_confirm_delete.html"
     success_url = reverse_lazy("dashboard:client_list")
@@ -272,7 +393,7 @@ class ClientDeleteView(LoginRequiredMixin, DeleteView):
         return ctx
 
 
-class ProjectCreateView(LoginRequiredMixin, CreateView):
+class ProjectCreateView(PermissionRequiredMixin, CreateView):
     model = Project
     form_class = ProjectForm
     template_name = "dashboard/project_form.html"
@@ -285,7 +406,7 @@ class ProjectCreateView(LoginRequiredMixin, CreateView):
         return ctx
 
 
-class ProjectUpdateView(LoginRequiredMixin, UpdateView):
+class ProjectUpdateView(PermissionRequiredMixin, UpdateView):
     model = Project
     form_class = ProjectForm
     template_name = "dashboard/project_form.html"
@@ -297,7 +418,7 @@ class ProjectUpdateView(LoginRequiredMixin, UpdateView):
         return ctx
 
 
-class ProjectDeleteView(LoginRequiredMixin, DeleteView):
+class ProjectDeleteView(PermissionRequiredMixin, DeleteView):
     model = Project
     template_name = "dashboard/project_confirm_delete.html"
     success_url = reverse_lazy("dashboard:project_list")
@@ -308,7 +429,7 @@ class ProjectDeleteView(LoginRequiredMixin, DeleteView):
         return ctx
 
 
-class HostedWebsiteCreateView(LoginRequiredMixin, CreateView):
+class HostedWebsiteCreateView(PermissionRequiredMixin, CreateView):
     model = HostedWebsite
     form_class = HostedWebsiteForm
     template_name = "dashboard/site_form.html"
@@ -321,7 +442,7 @@ class HostedWebsiteCreateView(LoginRequiredMixin, CreateView):
         return ctx
 
 
-class HostedWebsiteUpdateView(LoginRequiredMixin, UpdateView):
+class HostedWebsiteUpdateView(PermissionRequiredMixin, UpdateView):
     model = HostedWebsite
     form_class = HostedWebsiteForm
     template_name = "dashboard/site_form.html"
@@ -333,7 +454,7 @@ class HostedWebsiteUpdateView(LoginRequiredMixin, UpdateView):
         return ctx
 
 
-class HostedWebsiteDeleteView(LoginRequiredMixin, DeleteView):
+class HostedWebsiteDeleteView(PermissionRequiredMixin, DeleteView):
     model = HostedWebsite
     template_name = "dashboard/site_confirm_delete.html"
     success_url = reverse_lazy("dashboard:site_list")
@@ -344,7 +465,7 @@ class HostedWebsiteDeleteView(LoginRequiredMixin, DeleteView):
         return ctx
 
 
-class InvoiceCreateView(LoginRequiredMixin, CreateView):
+class InvoiceCreateView(PermissionRequiredMixin, CreateView):
     model = Invoice
     form_class = InvoiceForm
     template_name = "dashboard/invoice_form.html"
@@ -357,7 +478,7 @@ class InvoiceCreateView(LoginRequiredMixin, CreateView):
         return ctx
 
 
-class InvoiceUpdateView(LoginRequiredMixin, UpdateView):
+class InvoiceUpdateView(PermissionRequiredMixin, UpdateView):
     model = Invoice
     form_class = InvoiceForm
     template_name = "dashboard/invoice_form.html"
@@ -369,7 +490,7 @@ class InvoiceUpdateView(LoginRequiredMixin, UpdateView):
         return ctx
 
 
-class InvoiceDeleteView(LoginRequiredMixin, DeleteView):
+class InvoiceDeleteView(PermissionRequiredMixin, DeleteView):
     model = Invoice
     template_name = "dashboard/invoice_confirm_delete.html"
     success_url = reverse_lazy("dashboard:invoice_list")
@@ -378,3 +499,79 @@ class InvoiceDeleteView(LoginRequiredMixin, DeleteView):
         ctx = super().get_context_data(**kwargs)
         ctx["active_nav"] = "invoices"
         return ctx
+
+
+@login_required
+def generate_invoice_pdf(request, pk):
+    """Generate PDF for an invoice"""
+    invoice = get_object_or_404(Invoice, pk=pk)
+    
+    # Check permissions
+    profile = get_user_profile(request.user)
+    if not profile.can_view_all_clients() and (profile.role != UserProfile.ROLE_CLIENT or profile.client != invoice.client):
+        from django.core.exceptions import PermissionDenied
+        raise PermissionDenied("You don't have permission to view this invoice.")
+    
+    try:
+        pdf_file = invoice.generate_pdf()
+        if pdf_file:
+            return redirect('dashboard:invoice_detail', pk=pk)
+        else:
+            return redirect('dashboard:invoice_detail', pk=pk)
+    except Exception as e:
+        from django.contrib import messages
+        messages.error(request, f"Error generating PDF: {e}")
+        return redirect('dashboard:invoice_detail', pk=pk)
+
+
+@login_required
+def search(request):
+    """Global search across clients, projects, and hosted websites"""
+    query = request.GET.get('q', '').strip()
+    profile = get_user_profile(request.user)
+    
+    results = {
+        'clients': [],
+        'projects': [],
+        'sites': [],
+    }
+    
+    if query:
+        # Search clients
+        clients_qs = Client.objects.filter(
+            Q(name__icontains=query) | Q(company__icontains=query) | Q(email__icontains=query)
+        )
+        if not profile.can_view_all_clients():
+            if profile.role == UserProfile.ROLE_CLIENT and profile.client:
+                clients_qs = clients_qs.filter(pk=profile.client.pk)
+            else:
+                clients_qs = clients_qs.none()
+        results['clients'] = clients_qs[:10]
+        
+        # Search projects
+        projects_qs = Project.objects.filter(
+            Q(name__icontains=query) | Q(client__name__icontains=query) | Q(client__company__icontains=query)
+        ).select_related('client')
+        if not profile.can_view_all_clients():
+            if profile.role == UserProfile.ROLE_CLIENT and profile.client:
+                projects_qs = projects_qs.filter(client=profile.client)
+            else:
+                projects_qs = projects_qs.none()
+        results['projects'] = projects_qs[:10]
+        
+        # Search hosted websites
+        sites_qs = HostedWebsite.objects.filter(
+            Q(domain__icontains=query) | Q(server_ip__icontains=query) | Q(project__name__icontains=query)
+        ).select_related('project', 'project__client')
+        if not profile.can_view_all_clients():
+            if profile.role == UserProfile.ROLE_CLIENT and profile.client:
+                sites_qs = sites_qs.filter(project__client=profile.client)
+            else:
+                sites_qs = sites_qs.none()
+        results['sites'] = sites_qs[:10]
+    
+    return render(request, 'dashboard/search.html', {
+        'query': query,
+        'results': results,
+        'active_nav': 'search',
+    })
