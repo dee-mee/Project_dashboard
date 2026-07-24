@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Clients{% endblock %}
+{% block page_title %}Clients{% endblock %}
+{% block page_subtitle %}Everyone you build and host for{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <h3>All clients</h3>
+    <a class="btn" href="{% url 'dashboard:client_create' %}">+ Add client</a>
+  </div>
+  <div class="table-wrap">
+    {% if clients %}
+    <table>
+      <thead><tr><th>Client</th><th>Contact</th><th>Active projects</th><th>Since</th></tr></thead>
+      <tbody>
+        {% for client in clients %}
+        <tr>
+          <td><a href="{{ client.get_absolute_url }}">{{ client }}</a></td>
+          <td class="text-muted">{{ client.email|default:"—" }}</td>
+          <td class="mono">{{ client.active_project_count }}</td>
+          <td class="text-muted">{{ client.created_at|date:"M Y" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No clients yet. Add one from the admin.</div>
+    {% endif %}
+  </div>
+</div>
+
+{% if is_paginated %}
+<div class="pagination">
+  {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}">Prev</a>{% endif %}
+  <span class="current">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}">Next</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

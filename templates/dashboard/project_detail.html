@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }}{% endblock %}
+{% block page_title %}{{ project.name }}{% endblock %}
+{% block page_subtitle %}for {{ project.client }}{% endblock %}
+
+{% block content %}
+<div class="breadcrumb"><a href="{% url 'dashboard:project_list' %}">Projects</a> / {{ project.name }}</div>
+
+<div class="detail-header">
+  <div class="btn-filters">
+    <a href="{% url 'dashboard:project_update' project.pk %}" class="btn">Edit</a>
+    <a href="{% url 'dashboard:project_delete' project.pk %}" class="btn btn-danger">Delete</a>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h3>Hosted sites</h3><a class="muted" href="{% url 'dashboard:site_create' %}">+ Add site</a></div>
+    <div class="table-wrap">
+      {% if hosted_sites %}
+      <table>
+        <thead><tr><th>Domain</th><th>Status</th><th>Domain exp.</th><th>SSL exp.</th></tr></thead>
+        <tbody>
+          {% for site in hosted_sites %}
+          <tr>
+            <td><a href="{{ site.get_absolute_url }}">{{ site.domain }}</a></td>
+            <td><span class="pill tone-{% if site.status == 'online' %}green{% elif site.status == 'warning' %}amber{% elif site.status == 'offline' %}red{% else %}teal{% endif %}"><span class="pill-dot" style="background:currentColor"></span>{{ site.get_status_display }}</span></td>
+            <td class="text-muted">{{ site.domain_expiry_date|default:"—" }}</td>
+            <td class="text-muted">{{ site.ssl_expiry_date|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state">No hosted sites linked to this project yet.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>Details</h3></div>
+    <div class="field-list">
+      <div class="field-row"><span class="k">Client</span><span class="v"><a href="{{ project.client.get_absolute_url }}">{{ project.client }}</a></span></div>
+      <div class="field-row"><span class="k">Status</span><span class="v">{{ project.get_status_display }}</span></div>
+      <div class="field-row"><span class="k">Start date</span><span class="v">{{ project.start_date }}</span></div>
+      <div class="field-row"><span class="k">End date</span><span class="v">{{ project.end_date|default:"—" }}</span></div>
+      <div class="field-row"><span class="k">Budget</span><span class="v">{% if project.budget %}{{ project.budget|floatformat:0 }}{% else %}—{% endif %}</span></div>
+      {% if project.description %}<div class="field-row"><span class="k">Description</span><span class="v">{{ project.description }}</span></div>{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h3>Invoices</h3></div>
+  <div class="table-wrap">
+    {% if invoices %}
+    <table>
+      <thead><tr><th>Ref</th><th>Amount</th><th>Status</th><th>Due</th></tr></thead>
+      <tbody>
+        {% for inv in invoices %}
+        <tr>
+          <td>{{ inv.reference|default:"—" }}</td>
+          <td class="mono">{{ inv.amount|floatformat:0 }}</td>
+          <td><span class="pill tone-{% if inv.status == 'paid' %}green{% elif inv.status == 'pending' %}amber{% else %}red{% endif %}"><span class="pill-dot" style="background:currentColor"></span>{{ inv.get_status_display }}</span></td>
+          <td class="text-muted">{{ inv.due_date }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No invoices linked to this project yet.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

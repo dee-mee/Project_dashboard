@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Projects{% endblock %}
+{% block page_title %}Projects{% endblock %}
+{% block page_subtitle %}Everything currently in flight or delivered{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <div class="btn-filters">
+      <a class="btn-filter {% if not current_status %}active{% endif %}" href="{% url 'dashboard:project_list' %}">All</a>
+      {% for value, label in status_choices %}
+      <a class="btn-filter {% if current_status == value %}active{% endif %}" href="?status={{ value }}">{{ label }}</a>
+      {% endfor %}
+    </div>
+    <a class="btn" href="{% url 'dashboard:project_create' %}">+ Add project</a>
+  </div>
+  <div class="table-wrap">
+    {% if projects %}
+    <table>
+      <thead><tr><th>Project</th><th>Client</th><th>Status</th><th>Started</th><th>Hosted sites</th></tr></thead>
+      <tbody>
+        {% for p in projects %}
+        <tr>
+          <td><a href="{{ p.get_absolute_url }}">{{ p.name }}</a></td>
+          <td class="text-muted"><a href="{{ p.client.get_absolute_url }}">{{ p.client }}</a></td>
+          <td><span class="pill tone-{% if p.status == 'active' %}green{% elif p.status == 'planning' %}amber{% elif p.status == 'on_hold' %}red{% else %}teal{% endif %}"><span class="pill-dot" style="background:currentColor"></span>{{ p.get_status_display }}</span></td>
+          <td class="text-muted">{{ p.start_date }}</td>
+          <td class="mono">{{ p.hosted_sites.count }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No projects match this filter.</div>
+    {% endif %}
+  </div>
+</div>
+
+{% if is_paginated %}
+<div class="pagination">
+  {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}">Prev</a>{% endif %}
+  <span class="current">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}">Next</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

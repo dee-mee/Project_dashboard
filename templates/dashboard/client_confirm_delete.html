@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Delete Client{% endblock %}
+{% block page_title %}Delete Client{% endblock %}
+{% block page_subtitle %}Are you sure you want to delete {{ client }}?{% endblock %}
+
+{% block content %}
+<div class="breadcrumb"><a href="{% url 'dashboard:client_list' %}">Clients</a> / Delete</div>
+
+<div class="card" style="max-width: 500px;">
+  <div class="field-list">
+    <div class="field-row">
+      <span class="k">Client</span>
+      <span class="v">{{ client }}</span>
+    </div>
+    <div class="field-row">
+      <span class="k">Email</span>
+      <span class="v">{{ client.email|default:"—" }}</span>
+    </div>
+    <div class="field-row">
+      <span class="k">Active Projects</span>
+      <span class="v">{{ client.active_project_count }}</span>
+    </div>
+  </div>
+
+  <p style="color: var(--text-muted); margin: 20px 0;">
+    This action cannot be undone. All associated projects and invoices will also be deleted.
+  </p>
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-actions">
+      <button type="submit" class="btn btn-danger">Yes, Delete Client</button>
+      <a href="{% url 'dashboard:client_detail' client.pk %}" class="btn">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

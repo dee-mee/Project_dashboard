@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Delete Invoice{% endblock %}
+{% block page_title %}Delete Invoice{% endblock %}
+{% block page_subtitle %}Are you sure you want to delete {{ invoice }}?{% endblock %}
+
+{% block content %}
+<div class="breadcrumb"><a href="{% url 'dashboard:invoice_list' %}">Invoices</a> / Delete</div>
+
+<div class="card" style="max-width: 500px;">
+  <div class="field-list">
+    <div class="field-row">
+      <span class="k">Reference</span>
+      <span class="v">{{ invoice.reference|default:"—" }}</span>
+    </div>
+    <div class="field-row">
+      <span class="k">Client</span>
+      <span class="v">{{ invoice.client }}</span>
+    </div>
+    <div class="field-row">
+      <span class="k">Amount</span>
+      <span class="v">{{ invoice.amount|floatformat:2 }}</span>
+    </div>
+    <div class="field-row">
+      <span class="k">Status</span>
+      <span class="v">{{ invoice.get_status_display }}</span>
+    </div>
+  </div>
+
+  <p style="color: var(--text-muted); margin: 20px 0;">
+    This action cannot be undone.
+  </p>
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-actions">
+      <button type="submit" class="btn btn-danger">Yes, Delete Invoice</button>
+      <a href="{% url 'dashboard:invoice_detail' invoice.pk %}" class="btn">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

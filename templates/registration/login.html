@@ -1,0 +1,31 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign in · Agency Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+</head>
+<body>
+  <div class="login-shell">
+    <div class="login-card">
+      <h1>Agency Dashboard</h1>
+      <p>Sign in to manage your projects, clients, and hosted sites.</p>
+      {% if form.errors %}
+      <ul class="errorlist"><li>Your username and password didn't match. Try again.</li></ul>
+      {% endif %}
+      <form method="post" action="{% url 'login' %}">
+        {% csrf_token %}
+        <label for="id_username">Username</label>
+        <input type="text" name="username" id="id_username" autofocus required>
+        <label for="id_password">Password</label>
+        <input type="password" name="password" id="id_password" required>
+        <input type="hidden" name="next" value="{{ next }}">
+        <button type="submit">Sign in</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

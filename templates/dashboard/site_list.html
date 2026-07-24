@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Hosted sites{% endblock %}
+{% block page_title %}Hosted sites{% endblock %}
+{% block page_subtitle %}Live client websites and their infrastructure{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <div class="btn-filters">
+      <a class="btn-filter {% if not current_status %}active{% endif %}" href="{% url 'dashboard:site_list' %}">All</a>
+      {% for value, label in status_choices %}
+      <a class="btn-filter {% if current_status == value %}active{% endif %}" href="?status={{ value }}">{{ label }}</a>
+      {% endfor %}
+    </div>
+    <a class="btn" href="{% url 'dashboard:site_create' %}">+ Add site</a>
+  </div>
+  <div class="table-wrap">
+    {% if sites %}
+    <table>
+      <thead><tr><th>Domain</th><th>Project</th><th>Client</th><th>Status</th><th>Provider</th><th>Domain exp.</th><th>SSL exp.</th></tr></thead>
+      <tbody>
+        {% for site in sites %}
+        <tr>
+          <td><a href="{{ site.get_absolute_url }}">{{ site.domain }}</a></td>
+          <td class="text-muted"><a href="{{ site.project.get_absolute_url }}">{{ site.project.name }}</a></td>
+          <td class="text-muted">{{ site.project.client }}</td>
+          <td><span class="pill tone-{% if site.status == 'online' %}green{% elif site.status == 'warning' %}amber{% elif site.status == 'offline' %}red{% else %}teal{% endif %}"><span class="pill-dot" style="background:currentColor"></span>{{ site.get_status_display }}</span></td>
+          <td class="text-muted">{{ site.server_provider|default:"—" }}</td>
+          <td class="text-muted">{{ site.domain_expiry_date|default:"—" }}</td>
+          <td class="text-muted">{{ site.ssl_expiry_date|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No hosted sites match this filter.</div>
+    {% endif %}
+  </div>
+</div>
+
+{% if is_paginated %}
+<div class="pagination">
+  {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}">Prev</a>{% endif %}
+  <span class="current">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}">Next</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

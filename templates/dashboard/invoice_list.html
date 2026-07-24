@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Invoices{% endblock %}
+{% block page_title %}Invoices{% endblock %}
+{% block page_subtitle %}Billing across all clients{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <div class="btn-filters">
+      <a class="btn-filter {% if not current_status %}active{% endif %}" href="{% url 'dashboard:invoice_list' %}">All</a>
+      {% for value, label in status_choices %}
+      <a class="btn-filter {% if current_status == value %}active{% endif %}" href="?status={{ value }}">{{ label }}</a>
+      {% endfor %}
+    </div>
+    <a class="btn" href="{% url 'dashboard:invoice_create' %}">+ Add invoice</a>
+  </div>
+  <div class="table-wrap">
+    {% if invoices %}
+    <table>
+      <thead><tr><th>Ref</th><th>Client</th><th>Project</th><th>Amount</th><th>Status</th><th>Issued</th><th>Due</th></tr></thead>
+      <tbody>
+        {% for inv in invoices %}
+        <tr>
+          <td><a href="{% url 'dashboard:invoice_detail' inv.pk %}">{{ inv.reference|default:"—" }}</a></td>
+          <td class="text-muted"><a href="{{ inv.client.get_absolute_url }}">{{ inv.client }}</a></td>
+          <td class="text-muted">{% if inv.project %}<a href="{{ inv.project.get_absolute_url }}">{{ inv.project.name }}</a>{% else %}—{% endif %}</td>
+          <td class="mono">{{ inv.amount|floatformat:0 }}</td>
+          <td><span class="pill tone-{% if inv.status == 'paid' %}green{% elif inv.status == 'pending' %}amber{% else %}red{% endif %}"><span class="pill-dot" style="background:currentColor"></span>{{ inv.get_status_display }}</span></td>
+          <td class="text-muted">{{ inv.issued_date }}</td>
+          <td class="text-muted">{{ inv.due_date }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No invoices match this filter.</div>
+    {% endif %}
+  </div>
+</div>
+
+{% if is_paginated %}
+<div class="pagination">
+  {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}">Prev</a>{% endif %}
+  <span class="current">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}">Next</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

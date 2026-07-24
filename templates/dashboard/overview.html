@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+{% block page_title %}Overview{% endblock %}
+{% block page_subtitle %}Projects, hosted sites, and billing at a glance{% endblock %}
+
+{% block content %}
+
+<div class="grid grid-4">
+  <div class="card kpi">
+    <div class="kpi-top">
+      <span class="kpi-label">Clients</span>
+      <span class="kpi-icon tone-amber">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      </span>
+    </div>
+    <div class="kpi-value">{{ total_clients }}</div>
+    <div class="kpi-sub">Active accounts under management</div>
+  </div>
+
+  <div class="card kpi">
+    <div class="kpi-top">
+      <span class="kpi-label">Projects</span>
+      <span class="kpi-icon tone-teal">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      </span>
+    </div>
+    <div class="kpi-value">{{ total_projects }}</div>
+    <div class="kpi-sub">{{ active_projects }} currently active</div>
+  </div>
+
+  <div class="card kpi">
+    <div class="kpi-top">
+      <span class="kpi-label">Hosted sites</span>
+      <span class="kpi-icon tone-green">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+      </span>
+    </div>
+    <div class="kpi-value">{{ total_sites }}</div>
+    <div class="kpi-sub">Live client websites tracked</div>
+  </div>
+
+  <div class="card kpi">
+    <div class="kpi-top">
+      <span class="kpi-label">Outstanding</span>
+      <span class="kpi-icon tone-red">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      </span>
+    </div>
+    <div class="kpi-value">{{ outstanding_total|floatformat:0 }}</div>
+    <div class="kpi-sub">Unpaid across all invoices</div>
+  </div>
+</div>
+
+<div class="grid grid-3">
+  <div class="card">
+    <div class="card-head"><h3>Project status</h3><span class="muted">{{ total_projects }} total</span></div>
+    <div class="ring-wrap" style="height:170px;">
+      <canvas id="chartProjectStatus"></canvas>
+      <div class="ring-center"><span class="num">{{ total_projects }}</span><span class="lbl">Projects</span></div>
+    </div>
+    <div class="legend" id="legendProjectStatus"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>Hosted site health</h3><span class="muted">{{ total_sites }} total</span></div>
+    <div class="ring-wrap" style="height:170px;">
+      <canvas id="chartSiteStatus"></canvas>
+      <div class="ring-center"><span class="num">{{ total_sites }}</span><span class="lbl">Sites</span></div>
+    </div>
+    <div class="legend" id="legendSiteStatus"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>Invoice status</h3><span class="muted">by count</span></div>
+    <div class="ring-wrap" style="height:170px;">
+      <canvas id="chartInvoiceStatus"></canvas>
+      <div class="ring-center"><span class="num" id="invoiceTotalCount">0</span><span class="lbl">Invoices</span></div>
+    </div>
+    <div class="legend" id="legendInvoiceStatus"></div>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h3>Revenue, last 6 months</h3><span class="muted">issued invoices</span></div>
+    <div style="height:220px;"><canvas id="chartRevenueTrend"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h3>New projects</h3><span class="muted">last 6 months</span></div>
+    <div style="height:220px;"><canvas id="chartProjectsTrend"></canvas></div>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h3>Domains &amp; SSL expiring soon</h3><span class="muted">within 30 days</span></div>
+    <div class="table-wrap">
+      {% if expiring_sites %}
+      <table>
+        <thead><tr><th>Domain</th><th>Client</th><th>Domain exp.</th><th>SSL exp.</th></tr></thead>
+        <tbody>
+          {% for site in expiring_sites %}
+          <tr>
+            <td><a href="{{ site.get_absolute_url }}">{{ site.domain }}</a></td>
+            <td class="text-muted">{{ site.project.client }}</td>
+            <td class="mono">{% if site.domain_days_left is not None %}{{ site.domain_days_left }}d{% else %}—{% endif %}</td>
+            <td class="mono">{% if site.ssl_days_left is not None %}{{ site.ssl_days_left }}d{% else %}—{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state">Nothing expiring in the next 30 days.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>Overdue invoices</h3><span class="muted">needs follow-up</span></div>
+    <div class="table-wrap">
+      {% if overdue_invoices %}
+      <table>
+        <thead><tr><th>Ref</th><th>Client</th><th>Amount</th><th>Due</th></tr></thead>
+        <tbody>
+          {% for inv in overdue_invoices %}
+          <tr>
+            <td>{{ inv.reference|default:"—" }}</td>
+            <td class="text-muted">{{ inv.client }}</td>
+            <td class="mono">{{ inv.amount|floatformat:0 }}</td>
+            <td class="mono">{{ inv.due_date }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state">No overdue invoices. Nice.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h3>Recent projects</h3><a href="{% url 'dashboard:project_list' %}" class="muted">View all</a></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Project</th><th>Client</th><th>Status</th></tr></thead>
+        <tbody>
+          {% for p in recent_projects %}
+          <tr>
+            <td><a href="{{ p.get_absolute_url }}">{{ p.name }}</a></td>
+            <td class="text-muted">{{ p.client }}</td>
+            <td><span class="pill tone-{% if p.status == 'active' %}green{% elif p.status == 'planning' %}amber{% elif p.status == 'on_hold' %}red{% else %}teal{% endif %}"><span class="pill-dot" style="background:currentColor"></span>{{ p.get_status_display }}</span></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="3" class="empty-state">No projects yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>Recent invoices</h3><a href="{% url 'dashboard:invoice_list' %}" class="muted">View all</a></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Ref</th><th>Client</th><th>Amount</th><th>Status</th></tr></thead>
+        <tbody>
+          {% for inv in recent_invoices %}
+          <tr>
+            <td>{{ inv.reference|default:"—" }}</td>
+            <td class="text-muted">{{ inv.client }}</td>
+            <td class="mono">{{ inv.amount|floatformat:0 }}</td>
+            <td><span class="pill tone-{% if inv.status == 'paid' %}green{% elif inv.status == 'pending' %}amber{% else %}red{% endif %}"><span class="pill-dot" style="background:currentColor"></span>{{ inv.get_status_display }}</span></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="empty-state">No invoices yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_head %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const palette = {
+    amber: "#f5a623", teal: "#2dd9c4", green: "#4ade80",
+    violet: "#9b8cf2", red: "#f0556b", faint: "#3a3f4e"
+  };
+  const colorCycle = [palette.teal, palette.amber, palette.green, palette.violet, palette.red];
+  Chart.defaults.font.family = "Inter, sans-serif";
+  Chart.defaults.color = "#8b90a3";
+
+  function renderDonut(canvasId, legendId, payload, centerCountId) {
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    const labels = payload.labels.length ? payload.labels : ["No data"];
+    const data = payload.data.length ? payload.data : [1];
+    const colors = payload.data.length ? labels.map((_, i) => colorCycle[i % colorCycle.length]) : [palette.faint];
+
+    new Chart(ctx, {
+      type: "doughnut",
+      data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderWidth: 0, spacing: 2 }] },
+      options: {
+        cutout: "72%",
+        plugins: { legend: { display: false }, tooltip: { enabled: payload.data.length > 0 } },
+        maintainAspectRatio: false,
+      },
+    });
+
+    const legend = document.getElementById(legendId);
+    if (legend) {
+      legend.innerHTML = labels.map((l, i) =>
+        `<span class="legend-item"><span class="legend-dot" style="background:${colors[i]}"></span>${l}</span>`
+      ).join("");
+    }
+    if (centerCountId) {
+      document.getElementById(centerCountId).textContent = data.reduce((a, b) => a + b, 0);
+    }
+  }
+
+  renderDonut("chartProjectStatus", "legendProjectStatus", {{ project_status_json|safe }});
+  renderDonut("chartSiteStatus", "legendSiteStatus", {{ site_status_json|safe }});
+  renderDonut("chartInvoiceStatus", "legendInvoiceStatus", {{ invoice_status_json|safe }}, "invoiceTotalCount");
+
+  const revenueTrend = {{ revenue_trend_json|safe }};
+  new Chart(document.getElementById("chartRevenueTrend"), {
+    type: "line",
+    data: {
+      labels: revenueTrend.labels,
+      datasets: [{
+        data: revenueTrend.data,
+        borderColor: palette.teal,
+        backgroundColor: "rgba(45,217,196,0.12)",
+        fill: true, tension: 0.35, pointRadius: 3, pointBackgroundColor: palette.teal,
+      }],
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, border: { color: "#2a2e3a" } },
+        y: { grid: { color: "#22252f" }, border: { display: false } },
+      },
+    },
+  });
+
+  const projectsTrend = {{ projects_trend_json|safe }};
+  new Chart(document.getElementById("chartProjectsTrend"), {
+    type: "bar",
+    data: {
+      labels: projectsTrend.labels,
+      datasets: [{ data: projectsTrend.data, backgroundColor: palette.amber, borderRadius: 5, maxBarThickness: 28 }],
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, border: { color: "#2a2e3a" } },
+        y: { grid: { color: "#22252f" }, border: { display: false }, ticks: { precision: 0 } },
+      },
+    },
+  });
+});
+</script>
+{% endblock %}

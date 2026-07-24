@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Delete Hosted Website{% endblock %}
+{% block page_title %}Delete Hosted Website{% endblock %}
+{% block page_subtitle %}Are you sure you want to delete {{ site }}?{% endblock %}
+
+{% block content %}
+<div class="breadcrumb"><a href="{% url 'dashboard:site_list' %}">Hosted Sites</a> / Delete</div>
+
+<div class="card" style="max-width: 500px;">
+  <div class="field-list">
+    <div class="field-row">
+      <span class="k">Domain</span>
+      <span class="v">{{ site.domain }}</span>
+    </div>
+    <div class="field-row">
+      <span class="k">Project</span>
+      <span class="v">{{ site.project.name }}</span>
+    </div>
+    <div class="field-row">
+      <span class="k">Server Provider</span>
+      <span class="v">{{ site.server_provider|default:"—" }}</span>
+    </div>
+    <div class="field-row">
+      <span class="k">Status</span>
+      <span class="v">{{ site.get_status_display }}</span>
+    </div>
+  </div>
+
+  <p style="color: var(--text-muted); margin: 20px 0;">
+    This action cannot be undone.
+  </p>
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-actions">
+      <button type="submit" class="btn btn-danger">Yes, Delete Hosted Website</button>
+      <a href="{% url 'dashboard:site_detail' site.pk %}" class="btn">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

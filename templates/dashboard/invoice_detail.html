@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{{ invoice }}{% endblock %}
+{% block page_title %}{{ invoice.reference|default:"Invoice" }}{% endblock %}
+{% block page_subtitle %}{{ invoice.client }}{% endblock %}
+
+{% block content %}
+<div class="breadcrumb"><a href="{% url 'dashboard:invoice_list' %}">Invoices</a> / {{ invoice.reference|default:"Invoice" }}</div>
+
+<div class="detail-header">
+  <div class="btn-filters">
+    <a href="{% url 'dashboard:invoice_update' invoice.pk %}" class="btn">Edit</a>
+    <a href="{% url 'dashboard:invoice_delete' invoice.pk %}" class="btn btn-danger">Delete</a>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h3>Invoice Details</h3></div>
+    <div class="field-list">
+      <div class="field-row"><span class="k">Reference</span><span class="v">{{ invoice.reference|default:"—" }}</span></div>
+      <div class="field-row"><span class="k">Client</span><span class="v"><a href="{{ invoice.client.get_absolute_url }}">{{ invoice.client }}</a></span></div>
+      {% if invoice.project %}
+      <div class="field-row"><span class="k">Project</span><span class="v"><a href="{{ invoice.project.get_absolute_url }}">{{ invoice.project }}</a></span></div>
+      {% endif %}
+      <div class="field-row"><span class="k">Amount</span><span class="v mono">{{ invoice.amount|floatformat:2 }}</span></div>
+      <div class="field-row"><span class="k">Status</span><span class="v"><span class="pill tone-{% if invoice.status == 'paid' %}green{% elif invoice.status == 'pending' %}amber{% else %}red{% endif %}"><span class="pill-dot" style="background:currentColor"></span>{{ invoice.get_status_display }}</span></div>
+      <div class="field-row"><span class="k">Issued Date</span><span class="v">{{ invoice.issued_date }}</span></div>
+      <div class="field-row"><span class="k">Due Date</span><span class="v">{{ invoice.due_date }}</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>PDF Document</h3></div>
+    <div style="padding: 10px 0;">
+      {% if invoice.pdf_file %}
+        <a href="{{ invoice.pdf_file.url }}" target="_blank" class="btn" style="width: 100%; justify-content: center;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+          Download PDF
+        </a>
+        <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;">{{ invoice.pdf_file.name }}</p>
+      {% else %}
+        <p style="color: var(--text-muted); font-size: 13px;">No PDF attached to this invoice.</p>
+        <a href="{% url 'dashboard:invoice_update' invoice.pk %}" class="btn" style="margin-top: 8px;">Upload PDF</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+  <div class="card">
+    <div class="card-head"><h3>Status Actions</h3></div>
+    <div style="padding: 10px 0;">
+      <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 16px;">
+        Quick status changes:
+      </p>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <form method="post" action="{% url 'dashboard:invoice_update' invoice.pk %}" style="display: inline;">
+          {% csrf_token %}
+          <input type="hidden" name="status" value="paid">
+          <button type="submit" class="btn-filter">Mark Paid</button>
+        </form>
+        <form method="post" action="{% url 'dashboard:invoice_update' invoice.pk %}" style="display: inline;">
+          {% csrf_token %}
+          <input type="hidden" name="status" value="pending">
+          <button type="submit" class="btn-filter">Mark Pending</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

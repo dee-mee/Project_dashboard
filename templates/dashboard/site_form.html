@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}{{ form_title }}{% endblock %}
+{% block page_title %}{{ form_title }}{% endblock %}
+{% block page_subtitle %}{% if form.instance.pk %}Editing {{ form.instance }}{% else %}Add a new hosted website{% endif %}{% endblock %}
+
+{% block content %}
+<div class="breadcrumb"><a href="{% url 'dashboard:site_list' %}">Hosted Sites</a> / {{ form_title }}</div>
+
+<div class="card" style="max-width: 600px;">
+  <form method="post">
+    {% csrf_token %}
+    
+    {% if form.non_field_errors %}
+      <div class="errorlist">
+        {% for error in form.non_field_errors %}
+          <li>{{ error }}</li>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <div class="form-group">
+      <label for="{{ form.project.id_for_label }}">Project *</label>
+      {{ form.project }}
+      {% if form.project.errors %}
+        <ul class="errorlist">
+          {% for error in form.project.errors %}<li>{{ error }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+
+    <div class="form-group">
+      <label for="{{ form.domain.id_for_label }}">Domain *</label>
+      {{ form.domain }}
+      {% if form.domain.help_text %}
+        <div class="help-text">{{ form.domain.help_text }}</div>
+      {% endif %}
+      {% if form.domain.errors %}
+        <ul class="errorlist">
+          {% for error in form.domain.errors %}<li>{{ error }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+
+    <div class="form-group">
+      <label for="{{ form.server_provider.id_for_label }}">Server Provider</label>
+      {{ form.server_provider }}
+      {% if form.server_provider.help_text %}
+        <div class="help-text">{{ form.server_provider.help_text }}</div>
+      {% endif %}
+      {% if form.server_provider.errors %}
+        <ul class="errorlist">
+          {% for error in form.server_provider.errors %}<li>{{ error }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+
+    <div class="form-group">
+      <label for="{{ form.server_ip.id_for_label }}">Server IP</label>
+      {{ form.server_ip }}
+      {% if form.server_ip.errors %}
+        <ul class="errorlist">
+          {% for error in form.server_ip.errors %}<li>{{ error }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+
+    <div class="form-group">
+      <label for="{{ form.hosting_plan.id_for_label }}">Hosting Plan</label>
+      {{ form.hosting_plan }}
+      {% if form.hosting_plan.errors %}
+        <ul class="errorlist">
+          {% for error in form.hosting_plan.errors %}<li>{{ error }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+
+    <div class="form-group">
+      <label for="{{ form.status.id_for_label }}">Status</label>
+      {{ form.status }}
+      {% if form.status.errors %}
+        <ul class="errorlist">
+          {% for error in form.status.errors %}<li>{{ error }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+
+    <div class="form-group">
+      <label for="{{ form.domain_expiry_date.id_for_label }}">Domain Expiry Date</label>
+      {{ form.domain_expiry_date }}
+      {% if form.domain_expiry_date.errors %}
+        <ul class="errorlist">
+          {% for error in form.domain_expiry_date.errors %}<li>{{ error }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+
+    <div class="form-group">
+      <label for="{{ form.ssl_expiry_date.id_for_label }}">SSL Expiry Date</label>
+      {{ form.ssl_expiry_date }}
+      {% if form.ssl_expiry_date.errors %}
+        <ul class="errorlist">
+          {% for error in form.ssl_expiry_date.errors %}<li>{{ error }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+
+    <div class="form-group">
+      <label for="{{ form.notes.id_for_label }}">Notes</label>
+      {{ form.notes }}
+      {% if form.notes.errors %}
+        <ul class="errorlist">
+          {% for error in form.notes.errors %}<li>{{ error }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Save Hosted Website</button>
+      <a href="{% url 'dashboard:site_list' %}" class="btn">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

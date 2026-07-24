@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ site.domain }}{% endblock %}
+{% block page_title %}{{ site.domain }}{% endblock %}
+{% block page_subtitle %}{{ site.project.name }} — {{ site.project.client }}{% endblock %}
+
+{% block content %}
+<div class="breadcrumb"><a href="{% url 'dashboard:site_list' %}">Hosted sites</a> / {{ site.domain }}</div>
+
+<div class="detail-header">
+  <div class="btn-filters">
+    <a href="{% url 'dashboard:site_update' site.pk %}" class="btn">Edit</a>
+    <a href="{% url 'dashboard:site_delete' site.pk %}" class="btn btn-danger">Delete</a>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h3>Status</h3></div>
+    <div class="field-list">
+      <div class="field-row"><span class="k">Current status</span><span class="v"><span class="pill tone-{% if site.status == 'online' %}green{% elif site.status == 'warning' %}amber{% elif site.status == 'offline' %}red{% else %}teal{% endif %}"><span class="pill-dot" style="background:currentColor"></span>{{ site.get_status_display }}</span></span></div>
+      <div class="field-row"><span class="k">Last checked</span><span class="v">{{ site.last_checked|default:"Never" }}</span></div>
+      <div class="field-row"><span class="k">Domain expires</span><span class="v">{{ site.domain_expiry_date|default:"—" }}{% if site.domain_days_left is not None %} ({{ site.domain_days_left }}d){% endif %}</span></div>
+      <div class="field-row"><span class="k">SSL expires</span><span class="v">{{ site.ssl_expiry_date|default:"—" }}{% if site.ssl_days_left is not None %} ({{ site.ssl_days_left }}d){% endif %}</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>Hosting</h3></div>
+    <div class="field-list">
+      <div class="field-row"><span class="k">Project</span><span class="v"><a href="{{ site.project.get_absolute_url }}">{{ site.project.name }}</a></span></div>
+      <div class="field-row"><span class="k">Provider</span><span class="v">{{ site.server_provider|default:"—" }}</span></div>
+      <div class="field-row"><span class="k">Server IP</span><span class="v mono">{{ site.server_ip|default:"—" }}</span></div>
+      <div class="field-row"><span class="k">Hosting plan</span><span class="v">{{ site.hosting_plan|default:"—" }}</span></div>
+      {% if site.notes %}<div class="field-row"><span class="k">Notes</span><span class="v">{{ site.notes }}</span></div>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
