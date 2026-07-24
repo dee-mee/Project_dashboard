@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Project Comments{% endblock %}
+{% block page_title %}Project Comments{% endblock %}
+{% block page_subtitle %}Notes and discussions across projects{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <div class="btn-filters">
+      <a class="btn-filter {% if not current_project %}active{% endif %}" href="{% url 'dashboard:comment_list' %}">All</a>
+    </div>
+  </div>
+  <div class="table-wrap">
+    {% if comments %}
+    <table>
+      <thead><tr><th>Project</th><th>User</th><th>Comment</th><th>Posted</th></tr></thead>
+      <tbody>
+        {% for comment in comments %}
+        <tr>
+          <td><a href="{{ comment.project.get_absolute_url }}">{{ comment.project.name }}</a></td>
+          <td class="text-muted">{{ comment.user.username }}</td>
+          <td class="text-muted">{{ comment.content|truncatewords:15 }}</td>
+          <td class="text-muted">{{ comment.created_at|date:"M d, Y" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No comments found.</div>
+    {% endif %}
+  </div>
+</div>
+
+{% if is_paginated %}
+<div class="pagination">
+  {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}{% if current_project %}&project={{ current_project }}{% endif %}">Prev</a>{% endif %}
+  <span class="current">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}{% if current_project %}&project={{ current_project }}{% endif %}">Next</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

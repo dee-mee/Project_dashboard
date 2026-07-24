@@ -72,4 +72,74 @@
     {% endif %}
   </div>
 </div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h3>Time Entries</h3><a class="muted" href="{% url 'dashboard:timeentry_create' %}?project={{ project.pk }}">+ Add time</a></div>
+    <div class="table-wrap">
+      {% if time_entries %}
+      <table>
+        <thead><tr><th>Date</th><th>User</th><th>Hours</th><th>Description</th></tr></thead>
+        <tbody>
+          {% for entry in time_entries %}
+          <tr>
+            <td>{{ entry.date }}</td>
+            <td class="text-muted">{{ entry.user.username }}</td>
+            <td class="mono">{{ entry.hours }}h</td>
+            <td class="text-muted">{{ entry.description|truncatewords:8 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state">No time entries logged yet.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>File Attachments</h3><a class="muted" href="{% url 'dashboard:attachment_create' %}?project={{ project.pk }}">+ Upload file</a></div>
+    <div class="table-wrap">
+      {% if attachments %}
+      <table>
+        <thead><tr><th>File</th><th>Type</th><th>Uploaded</th></tr></thead>
+        <tbody>
+          {% for attachment in attachments %}
+          <tr>
+            <td><a href="{{ attachment.get_absolute_url }}">{{ attachment.file.name|slice:":-1:" }}</a></td>
+            <td><span class="pill tone-amber">{{ attachment.get_file_type_display }}</span></td>
+            <td class="text-muted">{{ attachment.uploaded_at|date:"M d, Y" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state">No files attached yet.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h3>Comments</h3><a class="muted" href="{% url 'dashboard:comment_create' project_id=project.pk %}">+ Add comment</a></div>
+  <div class="comments-section">
+    {% if comments %}
+    {% for comment in comments %}
+    <div class="comment">
+      <div class="comment-header">
+        <strong>{{ comment.user.username }}</strong>
+        <span class="text-muted">{{ comment.created_at|date:"M d, Y H:i" }}</span>
+      </div>
+      <div class="comment-content">{{ comment.content }}</div>
+      <div class="comment-actions">
+        <a href="{% url 'dashboard:comment_update' comment.pk %}" class="muted">Edit</a>
+        <a href="{% url 'dashboard:comment_delete' comment.pk %}" class="muted text-danger">Delete</a>
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="empty-state">No comments yet.</div>
+    {% endif %}
+  </div>
+</div>
 {% endblock %}

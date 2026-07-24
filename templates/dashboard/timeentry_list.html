@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Time Entries{% endblock %}
+{% block page_title %}Time Entries{% endblock %}
+{% block page_subtitle %}Track hours worked on projects{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <div class="btn-filters">
+      <a class="btn-filter {% if not current_project %}active{% endif %}" href="{% url 'dashboard:timeentry_list' %}">All</a>
+    </div>
+    <a class="btn" href="{% url 'dashboard:timeentry_create' %}">+ Add time entry</a>
+  </div>
+  <div class="table-wrap">
+    {% if time_entries %}
+    <table>
+      <thead><tr><th>Date</th><th>Project</th><th>User</th><th>Hours</th><th>Description</th></tr></thead>
+      <tbody>
+        {% for entry in time_entries %}
+        <tr>
+          <td>{{ entry.date }}</td>
+          <td><a href="{{ entry.project.get_absolute_url }}">{{ entry.project.name }}</a></td>
+          <td class="text-muted">{{ entry.user.username }}</td>
+          <td class="mono">{{ entry.hours }}h</td>
+          <td class="text-muted">{{ entry.description|truncatewords:10 }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No time entries found.</div>
+    {% endif %}
+  </div>
+</div>
+
+{% if is_paginated %}
+<div class="pagination">
+  {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}{% if current_project %}&project={{ current_project }}{% endif %}">Prev</a>{% endif %}
+  <span class="current">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}{% if current_project %}&project={{ current_project }}{% endif %}">Next</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

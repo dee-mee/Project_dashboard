@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}{{ recurring.name }}{% endblock %}
+{% block page_title %}{{ recurring.name }}{% endblock %}
+{% block page_subtitle %}Recurring billing for {{ recurring.client }}{% endblock %}
+
+{% block content %}
+<div class="breadcrumb"><a href="{% url 'dashboard:recurring_list' %}">Recurring Billing</a> / {{ recurring.name }}</div>
+
+<div class="detail-header">
+  <div class="btn-filters">
+    <a href="{% url 'dashboard:recurring_update' recurring.pk %}" class="btn">Edit</a>
+    <a href="{% url 'dashboard:recurring_delete' recurring.pk %}" class="btn btn-danger">Delete</a>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h3>Details</h3></div>
+    <div class="field-list">
+      <div class="field-row"><span class="k">Client</span><span class="v"><a href="{{ recurring.client.get_absolute_url }}">{{ recurring.client }}</a></span></div>
+      <div class="field-row"><span class="k">Project</span><span class="v">{% if recurring.project %}<a href="{{ recurring.project.get_absolute_url }}">{{ recurring.project.name }}</a>{% else %}—{% endif %}</span></div>
+      <div class="field-row"><span class="k">Amount</span><span class="v">${{ recurring.amount|floatformat:2 }}</span></div>
+      <div class="field-row"><span class="k">Interval</span><span class="v">{{ recurring.get_interval_display }}</span></div>
+      <div class="field-row"><span class="k">Status</span><span class="v">{{ recurring.get_status_display }}</span></div>
+      <div class="field-row"><span class="k">Start date</span><span class="v">{{ recurring.start_date }}</span></div>
+      <div class="field-row"><span class="k">Next billing</span><span class="v">{{ recurring.next_billing_date }}</span></div>
+      <div class="field-row"><span class="k">Last billed</span><span class="v">{{ recurring.last_billed_date|default:"—" }}</span></div>
+      {% if recurring.description %}<div class="field-row"><span class="k">Description</span><span class="v">{{ recurring.description }}</span></div>{% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>Actions</h3></div>
+    <div class="field-list">
+      {% if recurring.status == 'active' %}
+      <a href="{% url 'dashboard:recurring_generate_invoice' recurring.pk %}" class="btn btn-primary">Generate Invoice Now</a>
+      {% else %}
+      <p class="text-muted">Recurring billing is {{ recurring.get_status_display }}. Cannot generate invoices.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

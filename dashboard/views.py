@@ -5,13 +5,15 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import Count, Sum, Q
 from django.shortcuts import render, get_object_or_404, redirect
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
+from django.views.decorators.csrf import csrf_exempt
+from django.conf import settings
 
-from .forms import ClientForm, HostedWebsiteForm, InvoiceForm, ProjectForm
-from .models import Client, HostedWebsite, Invoice, Project, UserProfile
+from .forms import ClientForm, FileAttachmentForm, HostedWebsiteForm, InvoiceForm, ProjectCommentForm, ProjectForm, RecurringBillingForm, TimeEntryForm
+from .models import AuditLog, Client, FileAttachment, HostedWebsite, Invoice, Project, ProjectComment, RecurringBilling, TimeEntry, UserProfile
 
 
 class PermissionRequiredMixin(UserPassesTestMixin):
@@ -255,6 +257,9 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         ctx = super().get_context_data(**kwargs)
         ctx["hosted_sites"] = self.object.hosted_sites.all()
         ctx["invoices"] = self.object.invoices.all()
+        ctx["time_entries"] = self.object.time_entries.select_related('user').order_by('-date', '-created_at')
+        ctx["attachments"] = self.object.attachments.select_related('uploaded_by').order_by('-uploaded_at')
+        ctx["comments"] = self.object.comments.select_related('user').order_by('-created_at')
         ctx["active_nav"] = "projects"
         return ctx
 
@@ -575,3 +580,410 @@ def search(request):
         'results': results,
         'active_nav': 'search',
     })
+
+
+class TimeEntryListView(LoginRequiredMixin, ListView):
+    model = TimeEntry
+    template_name = "dashboard/timeentry_list.html"
+    context_object_name = "time_entries"
+    paginate_by = 25
+
+    def get_queryset(self):
+        profile = get_user_profile(self.request.user)
+        qs = TimeEntry.objects.select_related("project", "project__client", "user")
+        
+        if profile.can_view_all_clients():
+            pass  # Show all time entries
+        elif profile.role == UserProfile.ROLE_CLIENT and profile.client:
+            qs = qs.filter(project__client=profile.client)
+        else:
+            qs = qs.filter(user=self.request.user)
+        
+        project_id = self.request.GET.get("project")
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["active_nav"] = "time_entries"
+        ctx["current_project"] = self.request.GET.get("project", "")
+        return ctx
+
+
+class TimeEntryCreateView(PermissionRequiredMixin, CreateView):
+    model = TimeEntry
+    form_class = TimeEntryForm
+    template_name = "dashboard/timeentry_form.html"
+    success_url = reverse_lazy("dashboard:timeentry_list")
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["active_nav"] = "time_entries"
+        ctx["form_title"] = "Add Time Entry"
+        return ctx
+
+
+class TimeEntryUpdateView(PermissionRequiredMixin, UpdateView):
+    model = TimeEntry
+    form_class = TimeEntryForm
+    template_name = "dashboard/timeentry_form.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["active_nav"] = "time_entries"
+        ctx["form_title"] = "Edit Time Entry"
+        return ctx
+
+
+class TimeEntryDeleteView(PermissionRequiredMixin, DeleteView):
+    model = TimeEntry
+    template_name = "dashboard/timeentry_confirm_delete.html"
+    success_url = reverse_lazy("dashboard:timeentry_list")
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["active_nav"] = "time_entries"
+        return ctx
+
+
+class FileAttachmentListView(LoginRequiredMixin, ListView):
+    model = FileAttachment
+    template_name = "dashboard/attachment_list.html"
+    context_object_name = "attachments"
+    paginate_by = 25
+
+    def get_queryset(self):
+        profile = get_user_profile(self.request.user)
+        qs = FileAttachment.objects.select_related("project", "project__client", "uploaded_by")
+        
+        if profile.can_view_all_clients():
+            pass  # Show all attachments
+        elif profile.role == UserProfile.ROLE_CLIENT and profile.client:
+            qs = qs.filter(project__client=profile.client)
+        else:
+            qs = qs.none()
+        
+        file_type = self.request.GET.get("file_type")
+        if file_type:
+            qs = qs.filter(file_type=file_type)
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["active_nav"] = "attachments"
+        ctx["current_file_type"] = self.request.GET.get("file_type", "")
+        ctx["file_type_choices"] = FileAttachment.FILE_TYPE_CHOICES
+        return ctx
+
+
+class FileAttachmentDetailView(LoginRequiredMixin, DetailView):
+    model = FileAttachment
+    template_name = "dashboard/attachment_detail.html"
+    context_object_name = "attachment"
+
+    def get_queryset(self):
+        profile = get_user_profile(self.request.user)
+        if profile.can_view_all_clients():
+            return FileAttachment.objects.all()
+        elif profile.role == UserProfile.ROLE_CLIENT and profile.client:
+            return FileAttachment.objects.filter(project__client=profile.client)
+        return FileAttachment.objects.none()
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["active_nav"] = "attachments"
+        return ctx
+
+
+class FileAttachmentCreateView(PermissionRequiredMixin, CreateView):
+    model = FileAttachment
+    form_class = FileAttachmentForm
+    template_name = "dashboard/attachment_form.html"
+    success_url = reverse_lazy("dashboard:attachment_list")
+
+    def form_valid(self, form):
+        form.instance.uploaded_by = self.request.user
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["active_nav"] = "attachments"
+        ctx["form_title"] = "Upload File"
+        return ctx
+
+
+class FileAttachmentDeleteView(PermissionRequiredMixin, DeleteView):
+    model = FileAttachment
+    template_name = "dashboard/attachment_confirm_delete.html"
+    success_url = reverse_lazy("dashboard:attachment_list")
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["active_nav"] = "attachments"
+        return ctx
+
+
+class ProjectCommentListView(LoginRequiredMixin, ListView):
+    model = ProjectComment
+    template_name = "dashboard/comment_list.html"
+    context_object_name = "comments"
+    paginate_by = 25
+
+    def get_queryset(self):
+        profile = get_user_profile(self.request.user)
+        qs = ProjectComment.objects.select_related("project", "project__client", "user")
+        
+        if profile.can_view_all_clients():
+            pass  # Show all comments
+        elif profile.role == UserProfile.ROLE_CLIENT and profile.client:
+            qs = qs.filter(project__client=profile.client)
+        else:
+            qs = qs.none()
+        
+        project_id = self.request.GET.get("project")
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["active_nav"] = "comments"
+        ctx["current_project"] = self.request.GET.get("project", "")
+        return ctx
+
+
+class ProjectCommentCreateView(PermissionRequiredMixin, CreateView):
+    model = ProjectComment
+    form_class = ProjectCommentForm
+    template_name = "dashboard/comment_form.html"
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        project_id = self.kwargs.get('project_id')
+        form.instance.project = get_object_or_404(Project, pk=project_id)
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("dashboard:project_detail", kwargs={'pk': self.object.project.pk})
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["active_nav"] = "projects"
+        ctx["form_title"] = "Add Comment"
+        return ctx
+
+
+class ProjectCommentUpdateView(PermissionRequiredMixin, UpdateView):
+    model = ProjectComment
+    form_class = ProjectCommentForm
+    template_name = "dashboard/comment_form.html"
+
+    def get_success_url(self):
+        return reverse_lazy("dashboard:project_detail", kwargs={'pk': self.object.project.pk})
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["active_nav"] = "projects"
+        ctx["form_title"] = "Edit Comment"
+        return ctx
+
+
+class ProjectCommentDeleteView(PermissionRequiredMixin, DeleteView):
+    model = ProjectComment
+    template_name = "dashboard/comment_confirm_delete.html"
+
+    def get_success_url(self):
+        return reverse_lazy("dashboard:project_detail", kwargs={'pk': self.object.project.pk})
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["active_nav"] = "projects"
+        return ctx
+
+
+@login_required
+@csrf_exempt
+def create_stripe_payment_intent(request, pk):
+    """Create a Stripe Payment Intent for an invoice"""
+    invoice = get_object_or_404(Invoice, pk=pk)
+    
+    # Check permissions
+    profile = get_user_profile(request.user)
+    if not profile.can_view_all_clients() and (profile.role != UserProfile.ROLE_CLIENT or profile.client != invoice.client):
+        from django.core.exceptions import PermissionDenied
+        raise PermissionDenied("You don't have permission to view this invoice.")
+    
+    if invoice.status == Invoice.STATUS_PAID:
+        return JsonResponse({'error': 'Invoice is already paid'}, status=400)
+    
+    try:
+        # Configure Stripe with secret key from settings
+        stripe.api_key = getattr(settings, 'STRIPE_SECRET_KEY', None)
+        if not stripe.api_key:
+            return JsonResponse({'error': 'Stripe not configured'}, status=500)
+        
+        # Create payment intent
+        amount_in_cents = int(invoice.amount * 100)  # Convert to cents
+        payment_intent = stripe.PaymentIntent.create(
+            amount=amount_in_cents,
+            currency='usd',
+            metadata={'invoice_id': invoice.pk, 'reference': invoice.reference or str(invoice.pk)}
+        )
+        
+        return JsonResponse({
+            'clientSecret': payment_intent.client_secret,
+            'paymentIntentId': payment_intent.id,
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@csrf_exempt
+def stripe_webhook(request):
+    """Handle Stripe webhook events"""
+    stripe.api_key = getattr(settings, 'STRIPE_SECRET_KEY', None)
+    if not stripe.api_key:
+        return JsonResponse({'error': 'Stripe not configured'}, status=500)
+    
+    payload = request.body
+    sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
+    webhook_secret = getattr(settings, 'STRIPE_WEBHOOK_SECRET', None)
+    
+    if not webhook_secret:
+        return JsonResponse({'error': 'Webhook secret not configured'}, status=500)
+    
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+    except ValueError as e:
+        return JsonResponse({'error': 'Invalid payload'}, status=400)
+    except stripe.error.SignatureVerificationError as e:
+        return JsonResponse({'error': 'Invalid signature'}, status=400)
+    
+    # Handle payment_intent.succeeded event
+    if event['type'] == 'payment_intent.succeeded':
+        payment_intent = event['data']['object']
+        invoice_id = payment_intent.metadata.get('invoice_id')
+        
+        if invoice_id:
+            try:
+                invoice = Invoice.objects.get(pk=invoice_id)
+                invoice.mark_as_paid(payment_intent_id=payment_intent.id)
+                invoice.stripe_payment_status = payment_intent.status
+                invoice.save()
+            except Invoice.DoesNotExist:
+                pass
+    
+    return JsonResponse({'status': 'success'})
+
+
+class RecurringBillingListView(LoginRequiredMixin, ListView):
+    model = RecurringBilling
+    template_name = "dashboard/recurring_list.html"
+    context_object_name = "recurring_billings"
+    paginate_by = 25
+
+    def get_queryset(self):
+        profile = get_user_profile(self.request.user)
+        qs = RecurringBilling.objects.select_related("client", "project")
+        
+        if profile.can_view_all_clients():
+            pass  # Show all recurring billings
+        elif profile.role == UserProfile.ROLE_CLIENT and profile.client:
+            qs = qs.filter(client=profile.client)
+        else:
+            qs = qs.none()
+        
+        status = self.request.GET.get("status")
+        if status:
+            qs = qs.filter(status=status)
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["active_nav"] = "recurring"
+        ctx["current_status"] = self.request.GET.get("status", "")
+        ctx["status_choices"] = RecurringBilling.STATUS_CHOICES
+        return ctx
+
+
+class RecurringBillingDetailView(LoginRequiredMixin, DetailView):
+    model = RecurringBilling
+    template_name = "dashboard/recurring_detail.html"
+    context_object_name = "recurring"
+
+    def get_queryset(self):
+        profile = get_user_profile(self.request.user)
+        if profile.can_view_all_clients():
+            return RecurringBilling.objects.all()
+        elif profile.role == UserProfile.ROLE_CLIENT and profile.client:
+            return RecurringBilling.objects.filter(client=profile.client)
+        return RecurringBilling.objects.none()
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["active_nav"] = "recurring"
+        return ctx
+
+
+class RecurringBillingCreateView(PermissionRequiredMixin, CreateView):
+    model = RecurringBilling
+    form_class = RecurringBillingForm
+    template_name = "dashboard/recurring_form.html"
+    success_url = reverse_lazy("dashboard:recurring_list")
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["active_nav"] = "recurring"
+        ctx["form_title"] = "Add Recurring Billing"
+        return ctx
+
+
+class RecurringBillingUpdateView(PermissionRequiredMixin, UpdateView):
+    model = RecurringBilling
+    form_class = RecurringBillingForm
+    template_name = "dashboard/recurring_form.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["active_nav"] = "recurring"
+        ctx["form_title"] = "Edit Recurring Billing"
+        return ctx
+
+
+class RecurringBillingDeleteView(PermissionRequiredMixin, DeleteView):
+    model = RecurringBilling
+    template_name = "dashboard/recurring_confirm_delete.html"
+    success_url = reverse_lazy("dashboard:recurring_list")
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["active_nav"] = "recurring"
+        return ctx
+
+
+@login_required
+def generate_recurring_invoice(request, pk):
+    """Generate an invoice for a recurring billing cycle"""
+    recurring = get_object_or_404(RecurringBilling, pk=pk)
+    
+    # Check permissions
+    profile = get_user_profile(request.user)
+    if not profile.can_view_all_clients() and (profile.role != UserProfile.ROLE_CLIENT or profile.client != recurring.client):
+        from django.core.exceptions import PermissionDenied
+        raise PermissionDenied("You don't have permission to view this recurring billing.")
+    
+    invoice = recurring.generate_invoice()
+    if invoice:
+        from django.contrib import messages
+        messages.success(request, f"Invoice {invoice.reference} generated successfully.")
+        return redirect('dashboard:invoice_detail', pk=invoice.pk)
+    else:
+        from django.contrib import messages
+        messages.error(request, "Could not generate invoice. Recurring billing may not be active.")
+        return redirect('dashboard:recurring_detail', pk=pk)

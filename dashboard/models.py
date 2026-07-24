@@ -173,6 +173,11 @@ class Invoice(models.Model):
     issued_date = models.DateField(default=timezone.now)
     due_date = models.DateField()
     pdf_file = models.FileField(upload_to="invoices/%Y/%m/", null=True, blank=True)
+    
+    # Stripe payment fields
+    stripe_payment_intent_id = models.CharField(max_length=255, blank=True, null=True, help_text="Stripe Payment Intent ID")
+    stripe_payment_status = models.CharField(max_length=50, blank=True, null=True, help_text="Stripe payment status")
+    paid_at = models.DateTimeField(null=True, blank=True, help_text="When the invoice was marked as paid")
 
     class Meta:
         ordering = ["-issued_date"]
@@ -184,6 +189,14 @@ class Invoice(models.Model):
         if self.status == self.STATUS_PENDING and self.due_date and self.due_date < timezone.now().date():
             self.status = self.STATUS_OVERDUE
         super().save(*args, **kwargs)
+    
+    def mark_as_paid(self, payment_intent_id=None):
+        """Mark invoice as paid and record payment details"""
+        self.status = self.STATUS_PAID
+        self.paid_at = timezone.now()
+        if payment_intent_id:
+            self.stripe_payment_intent_id = payment_intent_id
+        self.save()
     
     def generate_pdf(self):
         """Generate PDF invoice using reportlab"""
@@ -319,3 +332,151 @@ class TimeEntry(models.Model):
     
     def __str__(self):
         return f"{self.hours}h on {self.project.name} ({self.date})"
+
+
+class FileAttachment(models.Model):
+    FILE_TYPE_CONTRACT = 'contract'
+    FILE_TYPE_PROPOSAL = 'proposal'
+    FILE_TYPE_SCREENSHOT = 'screenshot'
+    FILE_TYPE_OTHER = 'other'
+    
+    FILE_TYPE_CHOICES = [
+        (FILE_TYPE_CONTRACT, 'Contract'),
+        (FILE_TYPE_PROPOSAL, 'Proposal'),
+        (FILE_TYPE_SCREENSHOT, 'Screenshot'),
+        (FILE_TYPE_OTHER, 'Other'),
+    ]
+    
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='attachments')
+    file = models.FileField(upload_to='attachments/%Y/%m/')
+    file_type = models.CharField(max_length=20, choices=FILE_TYPE_CHOICES, default=FILE_TYPE_OTHER)
+    description = models.CharField(max_length=255, blank=True)
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='uploaded_attachments')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-uploaded_at']
+        verbose_name = 'File Attachment'
+        verbose_name_plural = 'File Attachments'
+        indexes = [
+            models.Index(fields=['project']),
+            models.Index(fields=['file_type']),
+            models.Index(fields=['uploaded_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.file.name} ({self.get_file_type_display()})"
+    
+    def get_absolute_url(self):
+        return reverse('dashboard:attachment_detail', args=[self.pk])
+
+
+class ProjectComment(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='comments')
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='project_comments')
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Project Comment'
+        verbose_name_plural = 'Project Comments'
+        indexes = [
+            models.Index(fields=['project']),
+            models.Index(fields=['created_at']),
+        ]
+    
+    def __str__(self):
+        truncated = self.content[:50] + '...' if len(self.content) > 50 else self.content
+        return f"{truncated} by {self.user}"
+
+
+class RecurringBilling(models.Model):
+    INTERVAL_MONTHLY = 'monthly'
+    INTERVAL_QUARTERLY = 'quarterly'
+    INTERVAL_YEARLY = 'yearly'
+    
+    INTERVAL_CHOICES = [
+        (INTERVAL_MONTHLY, 'Monthly'),
+        (INTERVAL_QUARTERLY, 'Quarterly'),
+        (INTERVAL_YEARLY, 'Yearly'),
+    ]
+    
+    STATUS_ACTIVE = 'active'
+    STATUS_PAUSED = 'paused'
+    STATUS_CANCELLED = 'cancelled'
+    
+    STATUS_CHOICES = [
+        (STATUS_ACTIVE, 'Active'),
+        (STATUS_PAUSED, 'Paused'),
+        (STATUS_CANCELLED, 'Cancelled'),
+    ]
+    
+    client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='recurring_billings')
+    project = models.ForeignKey(Project, on_delete=models.SET_NULL, null=True, blank=True, related_name='recurring_billings')
+    name = models.CharField(max_length=200, help_text='Name for this recurring billing (e.g., "Monthly Hosting")')
+    description = models.TextField(blank=True, help_text='Description of services included')
+    amount = models.DecimalField(max_digits=12, decimal_places=2, help_text='Recurring amount')
+    interval = models.CharField(max_length=20, choices=INTERVAL_CHOICES, default=INTERVAL_MONTHLY)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
+    
+    # Stripe subscription fields
+    stripe_subscription_id = models.CharField(max_length=255, blank=True, null=True)
+    stripe_price_id = models.CharField(max_length=255, blank=True, null=True)
+    
+    # Billing schedule
+    start_date = models.DateField(default=timezone.now)
+    next_billing_date = models.DateField()
+    last_billed_date = models.DateField(null=True, blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Recurring Billing'
+        verbose_name_plural = 'Recurring Billings'
+        indexes = [
+            models.Index(fields=['client']),
+            models.Index(fields=['status']),
+            models.Index(fields=['next_billing_date']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} - {self.client} ({self.get_interval_display()})"
+    
+    def get_absolute_url(self):
+        return reverse('dashboard:recurring_detail', args=[self.pk])
+    
+    def calculate_next_billing_date(self):
+        """Calculate the next billing date based on interval"""
+        from datetime import timedelta
+        if self.interval == self.INTERVAL_MONTHLY:
+            return self.next_billing_date + timedelta(days=30)
+        elif self.interval == self.INTERVAL_QUARTERLY:
+            return self.next_billing_date + timedelta(days=90)
+        elif self.interval == self.INTERVAL_YEARLY:
+            return self.next_billing_date + timedelta(days=365)
+        return self.next_billing_date
+    
+    def generate_invoice(self):
+        """Generate an invoice for this billing cycle"""
+        if self.status != self.STATUS_ACTIVE:
+            return None
+        
+        invoice = Invoice.objects.create(
+            client=self.client,
+            project=self.project,
+            reference=f"REC-{self.pk}-{self.last_billed_date.strftime('%Y%m') if self.last_billed_date else 'INIT'}",
+            amount=self.amount,
+            status=Invoice.STATUS_PENDING,
+            issued_date=timezone.now().date(),
+            due_date=timezone.now().date() + timedelta(days=30)
+        )
+        
+        self.last_billed_date = timezone.now().date()
+        self.next_billing_date = self.calculate_next_billing_date()
+        self.save()
+        
+        return invoice

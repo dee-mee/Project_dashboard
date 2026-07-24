@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Delete Time Entry{% endblock %}
+{% block page_title %}Delete Time Entry{% endblock %}
+
+{% block content %}
+<div class="card">
+  <p>Are you sure you want to delete the time entry for <strong>{{ timeentry.hours }}h</strong> on {{ timeentry.date }}?</p>
+  <form method="post" class="form-actions">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-primary">Yes, delete</button>
+    <a href="{% url 'dashboard:timeentry_list' %}" class="btn">Cancel</a>
+  </form>
+</div>
+{% endblock %}

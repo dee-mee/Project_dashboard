@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Delete Attachment{% endblock %}
+{% block page_title %}Delete Attachment{% endblock %}
+
+{% block content %}
+<div class="card">
+  <p>Are you sure you want to delete <strong>{{ attachment.file.name }}</strong>?</p>
+  <form method="post" class="form-actions">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-primary">Yes, delete</button>
+    <a href="{% url 'dashboard:attachment_list' %}" class="btn">Cancel</a>
+  </form>
+</div>
+{% endblock %}

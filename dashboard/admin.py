@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import AuditLog, Client, HostedWebsite, Invoice, Project, TimeEntry, UserProfile
+from .models import AuditLog, Client, FileAttachment, HostedWebsite, Invoice, Project, ProjectComment, RecurringBilling, TimeEntry, UserProfile
 
 
 class ProjectInline(admin.TabularInline):
@@ -76,3 +76,43 @@ class AuditLogAdmin(admin.ModelAdmin):
     list_filter = ("action", "timestamp")
     search_fields = ("user__username", "description")
     readonly_fields = ("user", "action", "content_type", "object_id", "description", "changes", "timestamp")
+
+
+@admin.register(FileAttachment)
+class FileAttachmentAdmin(admin.ModelAdmin):
+    list_display = ("file", "file_type", "project", "description", "uploaded_by", "uploaded_at")
+    list_filter = ("file_type", "uploaded_at")
+    search_fields = ("description", "file", "project__name")
+    date_hierarchy = "uploaded_at"
+
+
+@admin.register(ProjectComment)
+class ProjectCommentAdmin(admin.ModelAdmin):
+    list_display = ("project", "user", "content_preview", "created_at", "updated_at")
+    list_filter = ("created_at", "updated_at")
+    search_fields = ("content", "project__name", "user__username")
+    date_hierarchy = "created_at"
+    
+    def content_preview(self, obj):
+        return obj.content[:50] + "..." if len(obj.content) > 50 else obj.content
+    content_preview.short_description = "Content"
+
+
+@admin.register(RecurringBilling)
+class RecurringBillingAdmin(admin.ModelAdmin):
+    list_display = ("name", "client", "amount", "interval", "status", "next_billing_date", "last_billed_date")
+    list_filter = ("status", "interval", "next_billing_date")
+    search_fields = ("name", "client__name", "client__company", "project__name")
+    date_hierarchy = "next_billing_date"
+    
+    actions = ['generate_invoices']
+    
+    def generate_invoices(self, request, queryset):
+        count = 0
+        for recurring in queryset:
+            if recurring.status == RecurringBilling.STATUS_ACTIVE:
+                invoice = recurring.generate_invoice()
+                if invoice:
+                    count += 1
+        self.message_user(request, f"{count} invoices generated successfully.")
+    generate_invoices.short_description = "Generate invoices for selected items"

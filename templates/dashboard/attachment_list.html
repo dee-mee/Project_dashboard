@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}File Attachments{% endblock %}
+{% block page_title %}File Attachments{% endblock %}
+{% block page_subtitle %}Contracts, proposals, and other project files{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <div class="btn-filters">
+      <a class="btn-filter {% if not current_file_type %}active{% endif %}" href="{% url 'dashboard:attachment_list' %}">All</a>
+      {% for value, label in file_type_choices %}
+      <a class="btn-filter {% if current_file_type == value %}active{% endif %}" href="?file_type={{ value }}">{{ label }}</a>
+      {% endfor %}
+    </div>
+    <a class="btn" href="{% url 'dashboard:attachment_create' %}">+ Upload file</a>
+  </div>
+  <div class="table-wrap">
+    {% if attachments %}
+    <table>
+      <thead><tr><th>File</th><th>Type</th><th>Project</th><th>Description</th><th>Uploaded</th></tr></thead>
+      <tbody>
+        {% for attachment in attachments %}
+        <tr>
+          <td><a href="{{ attachment.get_absolute_url }}">{{ attachment.file.name|slice:":-1:" }}</a></td>
+          <td><span class="pill tone-amber">{{ attachment.get_file_type_display }}</span></td>
+          <td><a href="{{ attachment.project.get_absolute_url }}">{{ attachment.project.name }}</a></td>
+          <td class="text-muted">{{ attachment.description|truncatewords:8 }}</td>
+          <td class="text-muted">{{ attachment.uploaded_at|date:"M d, Y" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No attachments found.</div>
+    {% endif %}
+  </div>
+</div>
+
+{% if is_paginated %}
+<div class="pagination">
+  {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}{% if current_file_type %}&file_type={{ current_file_type }}{% endif %}">Prev</a>{% endif %}
+  <span class="current">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}{% if current_file_type %}&file_type={{ current_file_type }}{% endif %}">Next</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

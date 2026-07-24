@@ -1,5 +1,5 @@
 from django import forms
-from .models import Client, HostedWebsite, Invoice, Project, TimeEntry
+from .models import Client, FileAttachment, HostedWebsite, Invoice, Project, ProjectComment, RecurringBilling, TimeEntry
 
 
 class ClientForm(forms.ModelForm):
@@ -70,4 +70,54 @@ class InvoiceForm(forms.ModelForm):
             "issued_date": forms.DateInput(attrs={"class": "form-input", "type": "date"}),
             "due_date": forms.DateInput(attrs={"class": "form-input", "type": "date"}),
             "pdf_file": forms.FileInput(attrs={"class": "form-input"}),
+        }
+
+
+class TimeEntryForm(forms.ModelForm):
+    class Meta:
+        model = TimeEntry
+        fields = ["project", "description", "hours", "date"]
+        widgets = {
+            "project": forms.Select(attrs={"class": "form-input"}),
+            "description": forms.Textarea(attrs={"class": "form-input", "rows": 3}),
+            "hours": forms.NumberInput(attrs={"class": "form-input", "step": "0.25", "min": "0"}),
+            "date": forms.DateInput(attrs={"class": "form-input", "type": "date"}),
+        }
+
+
+class FileAttachmentForm(forms.ModelForm):
+    class Meta:
+        model = FileAttachment
+        fields = ["project", "file", "file_type", "description"]
+        widgets = {
+            "project": forms.Select(attrs={"class": "form-input"}),
+            "file": forms.FileInput(attrs={"class": "form-input"}),
+            "file_type": forms.Select(attrs={"class": "form-input"}),
+            "description": forms.TextInput(attrs={"class": "form-input"}),
+        }
+
+
+class ProjectCommentForm(forms.ModelForm):
+    class Meta:
+        model = ProjectComment
+        fields = ["content"]
+        widgets = {
+            "content": forms.Textarea(attrs={"class": "form-input", "rows": 4, "placeholder": "Add a comment..."}),
+        }
+
+
+class RecurringBillingForm(forms.ModelForm):
+    class Meta:
+        model = RecurringBilling
+        fields = ["client", "project", "name", "description", "amount", "interval", "status", "start_date", "next_billing_date"]
+        widgets = {
+            "client": forms.Select(attrs={"class": "form-input"}),
+            "project": forms.Select(attrs={"class": "form-input"}),
+            "name": forms.TextInput(attrs={"class": "form-input"}),
+            "description": forms.Textarea(attrs={"class": "form-input", "rows": 4}),
+            "amount": forms.NumberInput(attrs={"class": "form-input", "step": "0.01"}),
+            "interval": forms.Select(attrs={"class": "form-input"}),
+            "status": forms.Select(attrs={"class": "form-input"}),
+            "start_date": forms.DateInput(attrs={"class": "form-input", "type": "date"}),
+            "next_billing_date": forms.DateInput(attrs={"class": "form-input", "type": "date"}),
         }

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Delete Recurring Billing{% endblock %}
+{% block page_title %}Delete Recurring Billing{% endblock %}
+
+{% block content %}
+<div class="card">
+  <p>Are you sure you want to delete <strong>{{ recurring.name }}</strong> for {{ recurring.client }}?</p>
+  <p class="text-muted">This will not affect any invoices that have already been generated.</p>
+  <form method="post" class="form-actions">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-primary">Yes, delete</button>
+    <a href="{% url 'dashboard:recurring_list' %}" class="btn">Cancel</a>
+  </form>
+</div>
+{% endblock %}

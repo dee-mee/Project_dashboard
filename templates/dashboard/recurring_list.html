@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Recurring Billing{% endblock %}
+{% block page_title %}Recurring Billing{% endblock %}
+{% block page_subtitle %}Subscription and retainer billing{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <div class="btn-filters">
+      <a class="btn-filter {% if not current_status %}active{% endif %}" href="{% url 'dashboard:recurring_list' %}">All</a>
+      {% for value, label in status_choices %}
+      <a class="btn-filter {% if current_status == value %}active{% endif %}" href="?status={{ value }}">{{ label }}</a>
+      {% endfor %}
+    </div>
+    <a class="btn" href="{% url 'dashboard:recurring_create' %}">+ Add recurring billing</a>
+  </div>
+  <div class="table-wrap">
+    {% if recurring_billings %}
+    <table>
+      <thead><tr><th>Name</th><th>Client</th><th>Amount</th><th>Interval</th><th>Status</th><th>Next billing</th></tr></thead>
+      <tbody>
+        {% for recurring in recurring_billings %}
+        <tr>
+          <td><a href="{{ recurring.get_absolute_url }}">{{ recurring.name }}</a></td>
+          <td><a href="{{ recurring.client.get_absolute_url }}">{{ recurring.client }}</a></td>
+          <td class="mono">${{ recurring.amount|floatformat:2 }}</td>
+          <td>{{ recurring.get_interval_display }}</td>
+          <td><span class="pill tone-{% if recurring.status == 'active' %}green{% elif recurring.status == 'paused' %}amber{% else %}red{% endif %}">{{ recurring.get_status_display }}</span></td>
+          <td class="text-muted">{{ recurring.next_billing_date }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No recurring billing found.</div>
+    {% endif %}
+  </div>
+</div>
+
+{% if is_paginated %}
+<div class="pagination">
+  {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}">Prev</a>{% endif %}
+  <span class="current">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}">Next</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}
