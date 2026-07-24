@@ -5,7 +5,7 @@ from django.test import TestCase, Client as DjangoClient
 from django.utils import timezone
 from django.urls import reverse
 
-from dashboard.models import Client, HostedWebsite, Invoice, Project
+from dashboard.models import AuditLog, Client, HostedWebsite, Invoice, Project, UserProfile
 
 
 class ClientModelTests(TestCase):
@@ -177,6 +177,13 @@ class InvoiceModelTests(TestCase):
 class ViewTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='testuser', password='testpass')
+        # Create UserProfile with admin permissions for the test user
+        self.user_profile = UserProfile.objects.create(
+            user=self.user,
+            role=UserProfile.ROLE_ADMIN,
+            can_edit=True,
+            can_delete=True
+        )
         self.client = DjangoClient()
         self.client.login(username='testuser', password='testpass')
         

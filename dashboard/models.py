@@ -147,7 +147,6 @@ class HostedWebsite(models.Model):
     def ssl_days_left(self):
         return self._days_until(self.ssl_expiry_date)
 
-    @property
     def is_expiring_soon(self, threshold=30):
         for days in (self.domain_days_left, self.ssl_days_left):
             if days is not None and days <= threshold:
@@ -183,7 +182,9 @@ class Invoice(models.Model):
         ordering = ["-issued_date"]
 
     def __str__(self):
-        return self.reference or f"Invoice #{self.pk} - {self.client}"
+        if self.reference:
+            return f"{self.reference} - {self.client}"
+        return f"Invoice #{self.pk} - {self.client}"
 
     def save(self, *args, **kwargs):
         if self.status == self.STATUS_PENDING and self.due_date and self.due_date < timezone.now().date():
