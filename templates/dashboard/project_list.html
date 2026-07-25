@@ -17,7 +17,7 @@
   <div class="table-wrap">
     {% if projects %}
     <table>
-      <thead><tr><th>Project</th><th>Client</th><th>Status</th><th>Started</th><th>Hosted sites</th></tr></thead>
+      <thead><tr><th>Project</th><th>Client</th><th>Status</th><th>Started</th><th>Hosted sites</th><th>Actions</th></tr></thead>
       <tbody>
         {% for p in projects %}
         <tr>
@@ -26,6 +26,10 @@
           <td><span class="pill tone-{% if p.status == 'active' %}green{% elif p.status == 'planning' %}amber{% elif p.status == 'on_hold' %}red{% else %}teal{% endif %}"><span class="pill-dot" style="background:currentColor"></span>{{ p.get_status_display }}</span></td>
           <td class="text-muted">{{ p.start_date }}</td>
           <td class="mono">{{ p.hosted_sites.count }}</td>
+          <td>
+            <a href="{% url 'dashboard:project_update' p.pk %}" class="btn-filter" style="padding: 2px 8px; font-size: 12px;">Edit</a>
+            <a href="{% url 'dashboard:project_delete' p.pk %}" class="btn-filter" style="padding: 2px 8px; font-size: 12px; color: #f87171;">Delete</a>
+          </td>
         </tr>
         {% endfor %}
       </tbody>

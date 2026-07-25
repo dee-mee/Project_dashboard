@@ -17,7 +17,7 @@
   <div class="table-wrap">
     {% if sites %}
     <table>
-      <thead><tr><th>Domain</th><th>Project</th><th>Client</th><th>Status</th><th>Provider</th><th>Domain exp.</th><th>SSL exp.</th></tr></thead>
+      <thead><tr><th>Domain</th><th>Project</th><th>Client</th><th>Status</th><th>Provider</th><th>Domain exp.</th><th>SSL exp.</th><th>Actions</th></tr></thead>
       <tbody>
         {% for site in sites %}
         <tr>
@@ -28,6 +28,10 @@
           <td class="text-muted">{{ site.server_provider|default:"—" }}</td>
           <td class="text-muted">{{ site.domain_expiry_date|default:"—" }}</td>
           <td class="text-muted">{{ site.ssl_expiry_date|default:"—" }}</td>
+          <td>
+            <a href="{% url 'dashboard:site_update' site.pk %}" class="btn-filter" style="padding: 2px 8px; font-size: 12px;">Edit</a>
+            <a href="{% url 'dashboard:site_delete' site.pk %}" class="btn-filter" style="padding: 2px 8px; font-size: 12px; color: #f87171;">Delete</a>
+          </td>
         </tr>
         {% endfor %}
       </tbody>

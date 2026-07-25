@@ -17,7 +17,7 @@
   <div class="table-wrap">
     {% if invoices %}
     <table>
-      <thead><tr><th>Ref</th><th>Client</th><th>Project</th><th>Amount</th><th>Status</th><th>Issued</th><th>Due</th></tr></thead>
+      <thead><tr><th>Ref</th><th>Client</th><th>Project</th><th>Amount</th><th>Status</th><th>Issued</th><th>Due</th><th>Actions</th></tr></thead>
       <tbody>
         {% for inv in invoices %}
         <tr>
@@ -28,6 +28,10 @@
           <td><span class="pill tone-{% if inv.status == 'paid' %}green{% elif inv.status == 'pending' %}amber{% else %}red{% endif %}"><span class="pill-dot" style="background:currentColor"></span>{{ inv.get_status_display }}</span></td>
           <td class="text-muted">{{ inv.issued_date }}</td>
           <td class="text-muted">{{ inv.due_date }}</td>
+          <td>
+            <a href="{% url 'dashboard:invoice_update' inv.pk %}" class="btn-filter" style="padding: 2px 8px; font-size: 12px;">Edit</a>
+            <a href="{% url 'dashboard:invoice_delete' inv.pk %}" class="btn-filter" style="padding: 2px 8px; font-size: 12px; color: #f87171;">Delete</a>
+          </td>
         </tr>
         {% endfor %}
       </tbody>

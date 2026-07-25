@@ -14,7 +14,7 @@
   <div class="table-wrap">
     {% if time_entries %}
     <table>
-      <thead><tr><th>Date</th><th>Project</th><th>User</th><th>Hours</th><th>Description</th></tr></thead>
+      <thead><tr><th>Date</th><th>Project</th><th>User</th><th>Hours</th><th>Description</th><th>Actions</th></tr></thead>
       <tbody>
         {% for entry in time_entries %}
         <tr>
@@ -23,6 +23,10 @@
           <td class="text-muted">{{ entry.user.username }}</td>
           <td class="mono">{{ entry.hours }}h</td>
           <td class="text-muted">{{ entry.description|truncatewords:10 }}</td>
+          <td>
+            <a href="{% url 'dashboard:timeentry_update' entry.pk %}" class="btn-filter" style="padding: 2px 8px; font-size: 12px;">Edit</a>
+            <a href="{% url 'dashboard:timeentry_delete' entry.pk %}" class="btn-filter" style="padding: 2px 8px; font-size: 12px; color: #f87171;">Delete</a>
+          </td>
         </tr>
         {% endfor %}
       </tbody>

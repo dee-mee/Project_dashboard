@@ -17,7 +17,7 @@
   <div class="table-wrap">
     {% if attachments %}
     <table>
-      <thead><tr><th>File</th><th>Type</th><th>Project</th><th>Description</th><th>Uploaded</th></tr></thead>
+      <thead><tr><th>File</th><th>Type</th><th>Project</th><th>Description</th><th>Uploaded</th><th>Actions</th></tr></thead>
       <tbody>
         {% for attachment in attachments %}
         <tr>
@@ -26,6 +26,9 @@
           <td><a href="{{ attachment.project.get_absolute_url }}">{{ attachment.project.name }}</a></td>
           <td class="text-muted">{{ attachment.description|truncatewords:8 }}</td>
           <td class="text-muted">{{ attachment.uploaded_at|date:"M d, Y" }}</td>
+          <td>
+            <a href="{% url 'dashboard:attachment_delete' attachment.pk %}" class="btn-filter" style="padding: 2px 8px; font-size: 12px; color: #f87171;">Delete</a>
+          </td>
         </tr>
         {% endfor %}
       </tbody>

@@ -57,13 +57,17 @@ class UserProfile(models.Model):
         return f"{self.user.username} ({self.get_role_display()})"
     
     def has_full_access(self):
+        if self.user.is_superuser or self.user.is_staff:
+            return True
         return self.role in [self.ROLE_ADMIN, self.ROLE_MANAGER]
     
     def can_view_all_clients(self):
-        return self.role in [self.ROLE_ADMIN, self.ROLE_MANAGER]
+        if self.user.is_superuser or self.user.is_staff:
+            return True
+        return self.role in [self.ROLE_ADMIN, self.ROLE_MANAGER, self.ROLE_VIEWER]
     
     def can_view_client(self, client):
-        if self.has_full_access():
+        if self.has_full_access() or self.can_view_all_clients():
             return True
         if self.role == self.ROLE_CLIENT:
             return self.client == client
@@ -185,6 +189,9 @@ class Invoice(models.Model):
         if self.reference:
             return f"{self.reference} - {self.client}"
         return f"Invoice #{self.pk} - {self.client}"
+
+    def get_absolute_url(self):
+        return reverse("dashboard:invoice_detail", args=[self.pk])
 
     def save(self, *args, **kwargs):
         if self.status == self.STATUS_PENDING and self.due_date and self.due_date < timezone.now().date():
@@ -333,6 +340,9 @@ class TimeEntry(models.Model):
     
     def __str__(self):
         return f"{self.hours}h on {self.project.name} ({self.date})"
+
+    def get_absolute_url(self):
+        return reverse("dashboard:timeentry_list")
 
 
 class FileAttachment(models.Model):

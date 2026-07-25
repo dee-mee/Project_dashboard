@@ -19,7 +19,7 @@
     <div class="table-wrap">
       {% if hosted_sites %}
       <table>
-        <thead><tr><th>Domain</th><th>Status</th><th>Domain exp.</th><th>SSL exp.</th></tr></thead>
+        <thead><tr><th>Domain</th><th>Status</th><th>Domain exp.</th><th>SSL exp.</th><th>Actions</th></tr></thead>
         <tbody>
           {% for site in hosted_sites %}
           <tr>
@@ -27,6 +27,9 @@
             <td><span class="pill tone-{% if site.status == 'online' %}green{% elif site.status == 'warning' %}amber{% elif site.status == 'offline' %}red{% else %}teal{% endif %}"><span class="pill-dot" style="background:currentColor"></span>{{ site.get_status_display }}</span></td>
             <td class="text-muted">{{ site.domain_expiry_date|default:"—" }}</td>
             <td class="text-muted">{{ site.ssl_expiry_date|default:"—" }}</td>
+            <td>
+              <a href="{% url 'dashboard:site_update' site.pk %}" class="btn-filter" style="padding: 2px 8px; font-size: 12px;">Edit</a>
+            </td>
           </tr>
           {% endfor %}
         </tbody>
@@ -55,14 +58,17 @@
   <div class="table-wrap">
     {% if invoices %}
     <table>
-      <thead><tr><th>Ref</th><th>Amount</th><th>Status</th><th>Due</th></tr></thead>
+      <thead><tr><th>Ref</th><th>Amount</th><th>Status</th><th>Due</th><th>Actions</th></tr></thead>
       <tbody>
         {% for inv in invoices %}
         <tr>
-          <td>{{ inv.reference|default:"—" }}</td>
+          <td><a href="{% url 'dashboard:invoice_detail' inv.pk %}">{{ inv.reference|default:"—" }}</a></td>
           <td class="mono">{{ inv.amount|floatformat:0 }}</td>
           <td><span class="pill tone-{% if inv.status == 'paid' %}green{% elif inv.status == 'pending' %}amber{% else %}red{% endif %}"><span class="pill-dot" style="background:currentColor"></span>{{ inv.get_status_display }}</span></td>
           <td class="text-muted">{{ inv.due_date }}</td>
+          <td>
+            <a href="{% url 'dashboard:invoice_update' inv.pk %}" class="btn-filter" style="padding: 2px 8px; font-size: 12px;">Edit</a>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -79,7 +85,7 @@
     <div class="table-wrap">
       {% if time_entries %}
       <table>
-        <thead><tr><th>Date</th><th>User</th><th>Hours</th><th>Description</th></tr></thead>
+        <thead><tr><th>Date</th><th>User</th><th>Hours</th><th>Description</th><th>Actions</th></tr></thead>
         <tbody>
           {% for entry in time_entries %}
           <tr>
@@ -87,6 +93,10 @@
             <td class="text-muted">{{ entry.user.username }}</td>
             <td class="mono">{{ entry.hours }}h</td>
             <td class="text-muted">{{ entry.description|truncatewords:8 }}</td>
+            <td>
+              <a href="{% url 'dashboard:timeentry_update' entry.pk %}" class="btn-filter" style="padding: 2px 8px; font-size: 12px;">Edit</a>
+              <a href="{% url 'dashboard:timeentry_delete' entry.pk %}" class="btn-filter" style="padding: 2px 8px; font-size: 12px; color: #f87171;">Delete</a>
+            </td>
           </tr>
           {% endfor %}
         </tbody>
@@ -102,13 +112,16 @@
     <div class="table-wrap">
       {% if attachments %}
       <table>
-        <thead><tr><th>File</th><th>Type</th><th>Uploaded</th></tr></thead>
+        <thead><tr><th>File</th><th>Type</th><th>Uploaded</th><th>Actions</th></tr></thead>
         <tbody>
           {% for attachment in attachments %}
           <tr>
             <td><a href="{{ attachment.get_absolute_url }}">{{ attachment.file.name|slice:":-1:" }}</a></td>
             <td><span class="pill tone-amber">{{ attachment.get_file_type_display }}</span></td>
             <td class="text-muted">{{ attachment.uploaded_at|date:"M d, Y" }}</td>
+            <td>
+              <a href="{% url 'dashboard:attachment_delete' attachment.pk %}" class="btn-filter" style="padding: 2px 8px; font-size: 12px; color: #f87171;">Delete</a>
+            </td>
           </tr>
           {% endfor %}
         </tbody>

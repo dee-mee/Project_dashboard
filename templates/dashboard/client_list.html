@@ -12,7 +12,7 @@
   <div class="table-wrap">
     {% if clients %}
     <table>
-      <thead><tr><th>Client</th><th>Contact</th><th>Active projects</th><th>Since</th></tr></thead>
+      <thead><tr><th>Client</th><th>Contact</th><th>Active projects</th><th>Since</th><th>Actions</th></tr></thead>
       <tbody>
         {% for client in clients %}
         <tr>
@@ -20,6 +20,10 @@
           <td class="text-muted">{{ client.email|default:"—" }}</td>
           <td class="mono">{{ client.active_project_count }}</td>
           <td class="text-muted">{{ client.created_at|date:"M Y" }}</td>
+          <td>
+            <a href="{% url 'dashboard:client_update' client.pk %}" class="btn-filter" style="padding: 2px 8px; font-size: 12px;">Edit</a>
+            <a href="{% url 'dashboard:client_delete' client.pk %}" class="btn-filter" style="padding: 2px 8px; font-size: 12px; color: #f87171;">Delete</a>
+          </td>
         </tr>
         {% endfor %}
       </tbody>

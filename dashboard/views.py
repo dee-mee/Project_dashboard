@@ -23,11 +23,10 @@ class PermissionRequiredMixin(UserPassesTestMixin):
         if not self.request.user.is_authenticated:
             return False
         
-        try:
-            profile = self.request.user.profile
-        except UserProfile.DoesNotExist:
-            # Create a default profile if it doesn't exist
-            profile = UserProfile.objects.create(user=self.request.user)
+        if self.request.user.is_superuser or self.request.user.is_staff:
+            return True
+        
+        profile = get_user_profile(self.request.user)
         
         # Check edit/delete permissions
         if self.request.method in ['POST', 'PUT', 'DELETE']:
@@ -39,16 +38,31 @@ class PermissionRequiredMixin(UserPassesTestMixin):
         return True
     
     def handle_no_permission(self):
-        from django.contrib.auth.mixins import PermissionDenied
+        from django.core.exceptions import PermissionDenied
         raise PermissionDenied("You don't have permission to perform this action.")
 
 
 def get_user_profile(user):
     """Get or create user profile"""
     try:
-        return user.profile
+        profile = user.profile
     except UserProfile.DoesNotExist:
-        return UserProfile.objects.create(user=user)
+        role = UserProfile.ROLE_ADMIN if (user.is_superuser or user.is_staff) else UserProfile.ROLE_ADMIN
+        profile = UserProfile.objects.create(
+            user=user,
+            role=role,
+            can_edit=True,
+            can_delete=user.is_superuser or user.is_staff
+        )
+    
+    # Auto-upgrade superuser/staff profiles if they were created with viewer default
+    if (user.is_superuser or user.is_staff) and profile.role == UserProfile.ROLE_VIEWER:
+        profile.role = UserProfile.ROLE_ADMIN
+        profile.can_edit = True
+        profile.can_delete = True
+        profile.save()
+
+    return profile
 
 
 def _month_label(dt):
@@ -493,6 +507,9 @@ class InvoiceUpdateView(PermissionRequiredMixin, UpdateView):
         ctx["active_nav"] = "invoices"
         ctx["form_title"] = "Edit Invoice"
         return ctx
+    
+    def get_success_url(self):
+        return reverse_lazy("dashboard:invoice_detail", args=[self.object.pk])
 
 
 class InvoiceDeleteView(PermissionRequiredMixin, DeleteView):
